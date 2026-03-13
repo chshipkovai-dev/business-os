@@ -1,0 +1,258 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="38%" r="72%">
+      <stop offset="0%" stop-color="#14142A"/>
+      <stop offset="100%" stop-color="#06060F"/>
+    </radialGradient>
+    <radialGradient id="brainGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.45"/>
+      <stop offset="65%" stop-color="#4338CA" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brainFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18183C"/>
+      <stop offset="100%" stop-color="#0C0C24"/>
+    </linearGradient>
+    <linearGradient id="strokeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A5B4FC"/>
+      <stop offset="50%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#818CF8" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#4F46E5" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E0E7FF"/>
+      <stop offset="50%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#C7D2FE"/>
+    </linearGradient>
+    <linearGradient id="chipGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#312E81"/>
+      <stop offset="100%" stop-color="#1E1B4B"/>
+    </linearGradient>
+    <filter id="brainSoftGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="11" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="nodeGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="chipGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="outerGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="textGlow" x="-20%" y="-60%" width="140%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="brainClip">
+      <path d="M 256 118 C 238 112,208 112,190 124 C 166 138,150 162,148 188 C 146 212,156 236,174 252 C 188 265,208 274,230 277 C 240 279,250 280,256 280 C 262 280,272 279,282 277 C 304 274,324 265,338 252 C 356 236,366 212,364 188 C 362 162,346 138,322 124 C 304 112,274 112,256 118 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="url(#bgGrad)"/>
+
+  <!-- Rings -->
+  <circle cx="256" cy="210" r="192" fill="none" stroke="url(#ringGrad)" stroke-width="1.1" stroke-dasharray="8 5.5"/>
+  <circle cx="256" cy="210" r="166" fill="none" stroke="#6366F1" stroke-width="0.5" stroke-opacity="0.18"/>
+
+  <!-- Brain glow blob -->
+  <ellipse cx="256" cy="200" rx="150" ry="118" fill="url(#brainGlow)" filter="url(#outerGlow)"/>
+
+  <!-- ═══ BRAIN BASE FILL ═══ -->
+  <path d="M 256 118 C 238 112,208 112,190 124 C 166 138,150 162,148 188 C 146 212,156 236,174 252 C 188 265,208 274,230 277 C 240 279,250 280,256 280 C 262 280,272 279,282 277 C 304 274,324 265,338 252 C 356 236,366 212,364 188 C 362 162,346 138,322 124 C 304 112,274 112,256 118 Z"
+    fill="url(#brainFill)"/>
+
+  <!-- ═══ INTERNAL CIRCUIT BOARD (clipped to brain shape) ═══ -->
+  <g clip-path="url(#brainClip)" opacity="1">
+
+    <!-- Grid traces — horizontal -->
+    <line x1="150" y1="148" x2="362" y2="148" stroke="#6366F1" stroke-width="0.7" stroke-opacity="0.25"/>
+    <line x1="150" y1="168" x2="362" y2="168" stroke="#818CF8" stroke-width="0.7" stroke-opacity="0.2"/>
+    <line x1="148" y1="188" x2="364" y2="188" stroke="#6366F1" stroke-width="0.8" stroke-opacity="0.3"/>
+    <line x1="149" y1="208" x2="363" y2="208" stroke="#818CF8" stroke-width="0.7" stroke-opacity="0.22"/>
+    <line x1="151" y1="228" x2="361" y2="228" stroke="#6366F1" stroke-width="0.7" stroke-opacity="0.22"/>
+    <line x1="158" y1="248" x2="354" y2="248" stroke="#818CF8" stroke-width="0.7" stroke-opacity="0.18"/>
+    <line x1="172" y1="266" x2="340" y2="266" stroke="#6366F1" stroke-width="0.7" stroke-opacity="0.15"/>
+
+    <!-- Grid traces — vertical -->
+    <line x1="190" y1="120" x2="190" y2="278" stroke="#6366F1" stroke-width="0.7" stroke-opacity="0.22"/>
+    <line x1="214" y1="118" x2="214" y2="280" stroke="#818CF8" stroke-width="0.7" stroke-opacity="0.2"/>
+    <line x1="238" y1="118" x2="238" y2="280" stroke="#6366F1" stroke-width="0.8" stroke-opacity="0.25"/>
+    <line x1="274" y1="118" x2="274" y2="280" stroke="#6366F1" stroke-width="0.8" stroke-opacity="0.25"/>
+    <line x1="298" y1="118" x2="298" y2="280" stroke="#818CF8" stroke-width="0.7" stroke-opacity="0.2"/>
+    <line x1="322" y1="120" x2="322" y2="278" stroke="#6366F1" stroke-width="0.7" stroke-opacity="0.22"/>
+
+    <!-- Diagonal signal traces (dynamic look) -->
+    <path d="M 175 148 L 214 188 L 238 168 L 256 188" fill="none" stroke="#A5B4FC" stroke-width="1" stroke-opacity="0.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 337 148 L 298 188 L 274 168 L 256 188" fill="none" stroke="#A5B4FC" stroke-width="1" stroke-opacity="0.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 190 228 L 214 208 L 238 228 L 256 208" fill="none" stroke="#818CF8" stroke-width="0.9" stroke-opacity="0.35" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 322 228 L 298 208 L 274 228 L 256 208" fill="none" stroke="#818CF8" stroke-width="0.9" stroke-opacity="0.35" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 190 168 L 214 148 L 238 168" fill="none" stroke="#6366F1" stroke-width="0.8" stroke-opacity="0.3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 322 168 L 298 148 L 274 168" fill="none" stroke="#6366F1" stroke-width="0.8" stroke-opacity="0.3" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Neural arc paths (synapse-like curves) -->
+    <path d="M 175 168 C 195 145, 225 140, 238 148" fill="none" stroke="#818CF8" stroke-width="1" stroke-opacity="0.4" stroke-linecap="round"/>
+    <path d="M 337 168 C 317 145, 287 140, 274 148" fill="none" stroke="#818CF8" stroke-width="1" stroke-opacity="0.4" stroke-linecap="round"/>
+    <path d="M 175 208 C 200 218, 218 228, 238 228" fill="none" stroke="#A5B4FC" stroke-width="1" stroke-opacity="0.35" stroke-linecap="round"/>
+    <path d="M 337 208 C 312 218, 294 228, 274 228" fill="none" stroke="#A5B4FC" stroke-width="1" stroke-opacity="0.35" stroke-linecap="round"/>
+    <path d="M 190 248 C 210 240, 230 245, 238 248" fill="none" stroke="#6366F1" stroke-width="0.9" stroke-opacity="0.3" stroke-linecap="round"/>
+    <path d="M 322 248 C 302 240, 282 245, 274 248" fill="none" stroke="#6366F1" stroke-width="0.9" stroke-opacity="0.3" stroke-linecap="round"/>
+
+    <!-- ═══ CHIPS (small rectangles) ═══ -->
+    <!-- Left sub-chip 1 -->
+    <rect x="178" y="160" width="24" height="16" rx="2" fill="url(#chipGrad)" stroke="#6366F1" stroke-width="1" stroke-opacity="0.8" filter="url(#chipGlow)"/>
+    <line x1="182" y1="164" x2="198" y2="164" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.6"/>
+    <line x1="182" y1="168" x2="198" y2="168" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.6"/>
+    <line x1="182" y1="172" x2="198" y2="172" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.4"/>
+
+    <!-- Left sub-chip 2 -->
+    <rect x="178" y="220" width="24" height="14" rx="2" fill="url(#chipGrad)" stroke="#818CF8" stroke-width="0.9" stroke-opacity="0.7" filter="url(#chipGlow)"/>
+    <line x1="182" y1="224" x2="198" y2="224" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.5"/>
+    <line x1="182" y1="228" x2="198" y2="228" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.5"/>
+
+    <!-- Right sub-chip 1 (mirror) -->
+    <rect x="310" y="160" width="24" height="16" rx="2" fill="url(#chipGrad)" stroke="#6366F1" stroke-width="1" stroke-opacity="0.8" filter="url(#chipGlow)"/>
+    <line x1="314" y1="164" x2="330" y2="164" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.6"/>
+    <line x1="314" y1="168" x2="330" y2="168" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.6"/>
+    <line x1="314" y1="172" x2="330" y2="172" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.4"/>
+
+    <!-- Right sub-chip 2 (mirror) -->
+    <rect x="310" y="220" width="24" height="14" rx="2" fill="url(#chipGrad)" stroke="#818CF8" stroke-width="0.9" stroke-opacity="0.7" filter="url(#chipGlow)"/>
+    <line x1="314" y1="224" x2="330" y2="224" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.5"/>
+    <line x1="314" y1="228" x2="330" y2="228" stroke="#A5B4FC" stroke-width="0.7" stroke-opacity="0.5"/>
+
+    <!-- CENTRAL PROCESSOR CHIP -->
+    <rect x="232" y="180" width="48" height="32" rx="3" fill="#1E1B4B" stroke="#818CF8" stroke-width="1.2" stroke-opacity="0.9" filter="url(#chipGlow)"/>
+    <!-- CPU pins top -->
+    <line x1="240" y1="180" x2="240" y2="174" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <line x1="248" y1="180" x2="248" y2="174" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <line x1="256" y1="180" x2="256" y2="174" stroke="#A5B4FC" stroke-width="1" stroke-opacity="0.8"/>
+    <line x1="264" y1="180" x2="264" y2="174" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <line x1="272" y1="180" x2="272" y2="174" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <!-- CPU pins bottom -->
+    <line x1="240" y1="212" x2="240" y2="218" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <line x1="248" y1="212" x2="248" y2="218" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <line x1="256" y1="212" x2="256" y2="218" stroke="#A5B4FC" stroke-width="1" stroke-opacity="0.8"/>
+    <line x1="264" y1="212" x2="264" y2="218" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <line x1="272" y1="212" x2="272" y2="218" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <!-- CPU pins left -->
+    <line x1="232" y1="190" x2="226" y2="190" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <line x1="232" y1="200" x2="226" y2="200" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <!-- CPU pins right -->
+    <line x1="280" y1="190" x2="286" y2="190" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <line x1="280" y1="200" x2="286" y2="200" stroke="#6366F1" stroke-width="1" stroke-opacity="0.7"/>
+    <!-- CPU inner grid -->
+    <rect x="238" y="186" width="36" height="20" rx="1" fill="none" stroke="#6366F1" stroke-width="0.6" stroke-opacity="0.5"/>
+    <line x1="250" y1="186" x2="250" y2="206" stroke="#6366F1" stroke-width="0.5" stroke-opacity="0.4"/>
+    <line x1="262" y1="186" x2="262" y2="206" stroke="#6366F1" stroke-width="0.5" stroke-opacity="0.4"/>
+    <line x1="238" y1="196" x2="274" y2="196" stroke="#6366F1" stroke-width="0.5" stroke-opacity="0.4"/>
+    <!-- CPU center glow dot -->
+    <circle cx="256" cy="196" r="3.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="256" cy="196" r="2" fill="#C7D2FE"/>
+
+    <!-- Glowing nodes at grid intersections -->
+    <circle cx="190" cy="148" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="214" cy="148" r="2" fill="#818CF8" filter="url(#nodeGlow)"/>
+    <circle cx="238" cy="148" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="274" cy="148" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="298" cy="148" r="2" fill="#818CF8" filter="url(#nodeGlow)"/>
+    <circle cx="322" cy="148" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+
+    <circle cx="190" cy="168" r="2" fill="#818CF8" filter="url(#nodeGlow)"/>
+    <circle cx="214" cy="168" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="238" cy="168" r="2" fill="#818CF8"/>
+    <circle cx="274" cy="168" r="2" fill="#818CF8"/>
+    <circle cx="298" cy="168" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="322" cy="168" r="2" fill="#818CF8" filter="url(#nodeGlow)"/>
+
+    <circle cx="190" cy="208" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="214" cy="208" r="2" fill="#818CF8"/>
+    <circle cx="238" cy="208" r="2" fill="#818CF8"/>
+    <circle cx="274" cy="208" r="2" fill="#818CF8"/>
+    <circle cx="298" cy="208" r="2" fill="#818CF8"/>
+    <circle cx="322" cy="208" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+
+    <circle cx="190" cy="228" r="2" fill="#818CF8" filter="url(#nodeGlow)"/>
+    <circle cx="214" cy="228" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="238" cy="228" r="2" fill="#818CF8"/>
+    <circle cx="274" cy="228" r="2" fill="#818CF8"/>
+    <circle cx="298" cy="228" r="2.5" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="322" cy="228" r="2" fill="#818CF8" filter="url(#nodeGlow)"/>
+
+    <circle cx="214" cy="248" r="2" fill="#818CF8"/>
+    <circle cx="238" cy="248" r="2" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="274" cy="248" r="2" fill="#6366F1" filter="url(#nodeGlow)"/>
+    <circle cx="298" cy="248" r="2" fill="#818CF8"/>
+  </g>
+
+  <!-- ═══ BRAIN OUTLINE (on top of internals) ═══ -->
+  <!-- Glow -->
+  <path d="M 256 118 C 238 112,208 112,190 124 C 166 138,150 162,148 188 C 146 212,156 236,174 252 C 188 265,208 274,230 277 C 240 279,250 280,256 280 C 262 280,272 279,282 277 C 304 274,324 265,338 252 C 356 236,366 212,364 188 C 362 162,346 138,322 124 C 304 112,274 112,256 118 Z"
+    fill="none" stroke="#6366F1" stroke-width="3" stroke-opacity="0.5" filter="url(#brainSoftGlow)"/>
+  <!-- Crisp -->
+  <path d="M 256 118 C 238 112,208 112,190 124 C 166 138,150 162,148 188 C 146 212,156 236,174 252 C 188 265,208 274,230 277 C 240 279,250 280,256 280 C 262 280,272 279,282 277 C 304 274,324 265,338 252 C 356 236,366 212,364 188 C 362 162,346 138,322 124 C 304 112,274 112,256 118 Z"
+    fill="none" stroke="url(#strokeGrad)" stroke-width="1.8"/>
+
+  <!-- Center fissure -->
+  <path d="M 256 118 C 258 165,254 225,256 280"
+    fill="none" stroke="#6366F1" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="4 3"/>
+
+  <!-- External circuit wires -->
+  <line x1="148" y1="188" x2="132" y2="188" stroke="#6366F1" stroke-width="1.5" stroke-opacity="0.6"/>
+  <line x1="364" y1="188" x2="380" y2="188" stroke="#6366F1" stroke-width="1.5" stroke-opacity="0.6"/>
+  <line x1="148" y1="208" x2="132" y2="208" stroke="#818CF8" stroke-width="1.2" stroke-opacity="0.5"/>
+  <line x1="364" y1="208" x2="380" y2="208" stroke="#818CF8" stroke-width="1.2" stroke-opacity="0.5"/>
+  <line x1="132" y1="188" x2="132" y2="208" stroke="#6366F1" stroke-width="1.2" stroke-opacity="0.4"/>
+  <line x1="380" y1="188" x2="380" y2="208" stroke="#6366F1" stroke-width="1.2" stroke-opacity="0.4"/>
+  <circle cx="132" cy="188" r="4" fill="#6366F1" filter="url(#nodeGlow)"/>
+  <circle cx="132" cy="188" r="2.2" fill="#A5B4FC"/>
+  <circle cx="380" cy="188" r="4" fill="#6366F1" filter="url(#nodeGlow)"/>
+  <circle cx="380" cy="188" r="2.2" fill="#A5B4FC"/>
+  <circle cx="132" cy="208" r="3" fill="#818CF8" filter="url(#nodeGlow)"/>
+  <circle cx="380" cy="208" r="3" fill="#818CF8" filter="url(#nodeGlow)"/>
+
+  <!-- Top crown node -->
+  <circle cx="256" cy="116" r="5" fill="#6366F1" filter="url(#outerGlow)"/>
+  <circle cx="256" cy="116" r="3" fill="#C7D2FE"/>
+
+  <!-- Floating sparks -->
+  <circle cx="208" cy="94" r="2.5" fill="#818CF8" opacity="0.8" filter="url(#nodeGlow)"/>
+  <circle cx="304" cy="88" r="2" fill="#A5B4FC" opacity="0.7"/>
+  <line x1="206" y1="91" x2="206" y2="97" stroke="#A5B4FC" stroke-width="1.2" stroke-opacity="0.6"/>
+  <line x1="203" y1="94" x2="209" y2="94" stroke="#A5B4FC" stroke-width="1.2" stroke-opacity="0.6"/>
+
+  <!-- ═══ TEXT ═══ -->
+  <text x="256" y="390" text-anchor="middle"
+    font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter',sans-serif"
+    font-size="86" font-weight="800" letter-spacing="10"
+    fill="#6366F1" opacity="0.45" filter="url(#textGlow)">FORGE</text>
+  <text x="256" y="390" text-anchor="middle"
+    font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter',sans-serif"
+    font-size="86" font-weight="800" letter-spacing="10"
+    fill="url(#textGrad)">FORGE</text>
+
+  <line x1="128" y1="404" x2="384" y2="404" stroke="#6366F1" stroke-width="0.8" stroke-opacity="0.4"/>
+  <text x="256" y="427" text-anchor="middle"
+    font-family="-apple-system,BlinkMacSystemFont,'Inter',sans-serif"
+    font-size="13" font-weight="500" letter-spacing="4"
+    fill="#8B8FA8" opacity="0.9">YOUR AI BRO</text>
+
+  <!-- Corner marks -->
+  <rect x="28" y="28" width="20" height="2" rx="1" fill="#6366F1" opacity="0.3"/>
+  <rect x="28" y="28" width="2" height="20" rx="1" fill="#6366F1" opacity="0.3"/>
+  <rect x="464" y="28" width="20" height="2" rx="1" fill="#6366F1" opacity="0.3"/>
+  <rect x="482" y="28" width="2" height="20" rx="1" fill="#6366F1" opacity="0.3"/>
+  <rect x="28" y="482" width="20" height="2" rx="1" fill="#6366F1" opacity="0.3"/>
+  <rect x="28" y="464" width="2" height="20" rx="1" fill="#6366F1" opacity="0.3"/>
+  <rect x="464" y="482" width="20" height="2" rx="1" fill="#6366F1" opacity="0.3"/>
+  <rect x="482" y="464" width="2" height="20" rx="1" fill="#6366F1" opacity="0.3"/>
+</svg>
