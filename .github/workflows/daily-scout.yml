@@ -1,0 +1,37 @@
+name: Daily Scout
+
+on:
+  schedule:
+    # 08:00 UTC = 09:00 CET (зимой) / 10:00 CEST (летом)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # ручной запуск из GitHub UI
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Daily Scout
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PRODUCT_HUNT_CLIENT_ID: ${{ secrets.PRODUCT_HUNT_CLIENT_ID }}
+          PRODUCT_HUNT_CLIENT_SECRET: ${{ secrets.PRODUCT_HUNT_CLIENT_SECRET }}
+        run: node scripts/run-daily-scout.mjs
