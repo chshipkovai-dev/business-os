@@ -13,10 +13,12 @@ export async function GET() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // Порог 7.0 — совпадает со скаутом (run-daily-scout.mjs line 433)
+  // Было 7.5 → идеи 7.0–7.4 сохранялись в базе но не показывались на сайте
   const { data, error } = await supabase
     .from('ideas')
     .select('*')
-    .gte('total_score', 7.5)
+    .gte('total_score', 7.0)
     .order('total_score', { ascending: false })
 
   if (error) {

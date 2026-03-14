@@ -117,20 +117,62 @@ const REDDIT_SUBS = [
   'consulting',      // боли консультантов и агентств
 ]
 
+// Получаем OAuth токен Reddit (app-only, без логина пользователя)
+// Нужны переменные: REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET
+// Создать приложение: https://www.reddit.com/prefs/apps → script → любой redirect URI
+async function getRedditToken() {
+  const clientId = process.env.REDDIT_CLIENT_ID
+  const clientSecret = process.env.REDDIT_CLIENT_SECRET
+  if (!clientId || !clientSecret) return null
+
+  try {
+    const res = await fetch('https://www.reddit.com/api/v1/access_token', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+        // Reddit требует: platform:appid:version (by /u/username)
+        'User-Agent': 'server:scout-agent:1.0 (by /u/scout_bot_ai)',
+      },
+      body: 'grant_type=client_credentials',
+    })
+    if (!res.ok) return null
+    const { access_token } = await res.json()
+    return access_token
+  } catch {
+    return null
+  }
+}
+
 async function fetchRedditIdeas() {
   console.log('📡 Сканирую Reddit...')
   const signals = []
 
+  // Пробуем получить OAuth токен (работает с GitHub Actions, обходит блокировку IP)
+  const redditToken = await getRedditToken()
+  const baseUrl = redditToken ? 'https://oauth.reddit.com' : 'https://www.reddit.com'
+  const headers = redditToken
+    ? { 'Authorization': `Bearer ${redditToken}`, 'User-Agent': 'server:scout-agent:1.0 (by /u/scout_bot_ai)' }
+    : { 'User-Agent': 'server:scout-agent:1.0 (by /u/scout_bot_ai)' }
+
+  if (!redditToken) {
+    console.log('   ⚠️ Reddit OAuth не настроен — используем публичный API (может блокироваться с облака)')
+    console.log('   💡 Добавь REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET в GitHub Secrets')
+  }
+
   for (const sub of REDDIT_SUBS) {
     try {
       const [hotRes, newRes] = await Promise.all([
-        fetch(`https://www.reddit.com/r/${sub}/hot.json?limit=25`, {
-          headers: { 'User-Agent': 'Mozilla/5.0 ScoutBot/1.0' }
-        }),
-        fetch(`https://www.reddit.com/r/${sub}/new.json?limit=25`, {
-          headers: { 'User-Agent': 'Mozilla/5.0 ScoutBot/1.0' }
-        }),
+        fetch(`${baseUrl}/r/${sub}/hot.json?limit=25`, { headers }),
+        fetch(`${baseUrl}/r/${sub}/new.json?limit=25`, { headers }),
       ])
+
+      // Проверяем что ответ не заблокирован (Reddit возвращает HTML при блокировке)
+      const contentType = hotRes.headers.get('content-type') ?? ''
+      if (!contentType.includes('json')) {
+        console.log(`   ⚠️ Reddit r/${sub} вернул не-JSON (заблокирован облачным IP)`)
+        continue
+      }
 
       const hotData = await hotRes.json()
       const newData = await newRes.json()
