@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { stageLabel, stageColor, type Project } from "@/lib/projects"
-import { Star, Plus, ArrowRight, Sparkles } from "lucide-react"
+import { Star, Plus, ArrowRight, Sparkles, Search } from "lucide-react"
 
 const STARRED_KEY = "business_os_starred"
+const STARRED_NONE = "__none__"
 
 const tierColors: Record<string, string> = {
   S: "#6366F1",
@@ -41,13 +42,13 @@ export default function ProjectsBoard() {
   const router = useRouter()
   const [starredId, setStarredId] = useState<string | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
+  const [search, setSearch] = useState("")
 
   useEffect(() => {
     fetch('/api/ideas')
       .then(r => r.json())
       .then(data => {
-        // Map API response to Project format
-        const mapped: Project[] = data.map((idea: {
+        const mapped: Project[] = (Array.isArray(data) ? data : []).map((idea: {
           id: number; title: string; description: string; score: number; tier: string;
           market: number; mono: number; speed: number; competition: number;
           audience: string; tags: string[]; status: string;
@@ -80,22 +81,27 @@ export default function ProjectsBoard() {
   useEffect(() => {
     if (projects.length === 0) return
     const saved = localStorage.getItem(STARRED_KEY)
-    if (saved) setStarredId(saved)
-    else setStarredId(projects[0]?.id ?? null)
+    // STARRED_NONE означает что пользователь намеренно снял звёздочку
+    if (saved === STARRED_NONE) setStarredId(null)
+    else if (saved) setStarredId(saved)
+    // Если ничего не сохранено — не выбираем автоматически
   }, [projects])
 
   const toggleStar = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     const next = starredId === id ? null : id
     setStarredId(next)
-    if (next) localStorage.setItem(STARRED_KEY, next)
-    else localStorage.removeItem(STARRED_KEY)
+    // Сохраняем STARRED_NONE чтобы при перезагрузке не выбирался первый проект
+    localStorage.setItem(STARRED_KEY, next ?? STARRED_NONE)
   }
 
   const openProject = (id: string) => router.push(`/projects/${id}`)
 
   const starred = projects.find(p => p.id === starredId)
-  const rest = projects.filter(p => p.id !== starredId)
+  const q = search.trim().toLowerCase()
+  const rest = projects
+    .filter(p => p.id !== starredId)
+    .filter(p => !q || p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
 
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
@@ -209,10 +215,26 @@ export default function ProjectsBoard() {
       )}
 
       {/* All projects grid */}
-      <div style={{ marginBottom: 14 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", flexShrink: 0 }}>
           Все проекты · {rest.length}
         </span>
+        <div style={{ position: "relative", maxWidth: 280, flex: 1 }}>
+          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Найти идею..."
+            style={{
+              width: "100%", padding: "6px 10px 6px 30px",
+              background: "var(--bg-surface)", border: "1px solid var(--border)",
+              borderRadius: 8, fontSize: 12, color: "var(--text-primary)",
+              outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+            }}
+            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
+            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}
+          />
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
