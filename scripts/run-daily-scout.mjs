@@ -12,13 +12,13 @@
  * Процесс:
  * 1. Собирает сигналы из всех источников (~500+ постов)
  * 2. Claude Haiku анализирует топ-80 по релевантности
- * 3. Сохраняет ТОЛЬКО горящие боли (score ≥ 6) в Supabase
+ * 3. Сохраняет ТОЛЬКО горящие боли (score ≥ 7.0) в Supabase
  * 4. Отправляет отчёт в Telegram
  */
 
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
-import { readFileSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
@@ -411,7 +411,7 @@ async function fetchStackOverflowIdeas() {
   return signals
 }
 
-// ─── 6. CLAUDE АНАЛИЗАТОР ─────────────────────────────────────────────────────
+// ─── 6. CLAUDE АНАЛИЗАТОР (Haiku — быстро и дёшево) ──────────────────────────
 
 async function analyzeSignal(signal) {
   const sourceLabel =
@@ -420,36 +420,27 @@ async function analyzeSignal(signal) {
     signal.source.startsWith('github') ? 'GitHub' :
     signal.source === 'stackoverflow' ? 'Stack Overflow' : 'Hacker News'
 
-  const prompt = `Ты эксперт-аналитик стартапов. Оцени этот сигнал из ${sourceLabel} строго и честно.
+  const prompt = `Ты эксперт-аналитик стартапов. Оцени этот сигнал из ${sourceLabel}.
 
 Заголовок: ${signal.title}
 Описание: ${signal.description || 'Нет описания'}
 Источник: ${signal.source}
 Голоса: ${signal.score}, Комментарии: ${signal.comments}
 
-МЫ ИЩЕМ только идеи, которые соответствуют ВСЕМ этим критериям:
-✅ Нет доминирующего конкурента с венчурным финансированием (>$5M) в этой нише
-✅ Можно построить MVP за 4-8 недель (без сложных интеграций типа Shopify App, Amazon API)
-✅ Аудитория платит $29-199/мес без вопросов (чёткий ROI или экономия времени)
-✅ Продаётся онлайн без личных продаж (Reddit, Product Hunt, SEO)
-✅ Нет жёстких регуляций (HIPAA, PCI, финансовые лицензии)
-✅ Проблема срочная — люди теряют деньги или время ПРЯМО СЕЙЧАС
+МЫ ИЩЕМ идеи где:
+✅ Конкретный человек (фрилансер, малый бизнес, агентство) теряет деньги или часы ПРЯМО СЕЙЧАС
+✅ Они ещё не знают что это можно автоматизировать — или знают, но думают что это сложно/дорого
+✅ Заплатят $29-99/мес если ты придёшь с ГОТОВЫМ решением (не инструментом — а решением)
+✅ MVP можно собрать за 4-8 недель
+✅ Продаётся онлайн: Reddit, Product Hunt, SEO — без личных встреч
 
-НЕ НУЖНО (ставь isOpportunity: false):
-❌ Content repurposing (Opus Clip доминирует)
-❌ Email marketing / abandoned cart (Klaviyo, Omnisend доминируют)
-❌ Amazon/Shopify листинги (десятки инструментов уже есть)
-❌ AI writing tools (ChatGPT коммодитизировал)
-❌ Proposal/quote generators (многие уже бесплатны)
-❌ Review response (RightResponseAI $8/мес убивает ценообразование)
-❌ Медицинские/юридические compliance (HIPAA/регуляции = месяцы работы)
-❌ Marketplace-зависимые продукты (нужно одобрение App Store = недели ожидания)
+НЕ НУЖНО только если:
+❌ Нет реального денежного или временного ущерба (просто "было бы удобнее")
+❌ Нужна лицензия: финансы, медицина, юридика
+❌ Аудитория — крупные корпорации (>500 сотрудников, закупки через тендеры)
 
-ИДЕАЛЬНО ДЛЯ НАС:
-⭐ Узкая боль где существующие решения дорогие ($200+/мес) или устаревшие
-⭐ Аудитория: фрилансеры, малый бизнес, SaaS-команды, агентства
-⭐ Простой web app + AI → пользователь получает конкретный результат за секунды
-⭐ Можно запустить через Reddit/HN пост без бюджета на рекламу
+ВАЖНО: наличие конкурентов — НЕ причина отказывать. Большинство малых бизнесов не знает об этих инструментах.
+Если проблема реальна и деньги теряются — это возможность.
 
 ВАЖНО: весь текст в JSON должен быть на РУССКОМ языке.
 Ответь ТОЛЬКО валидным JSON (без markdown):
@@ -464,16 +455,12 @@ async function analyzeSignal(signal) {
   "competitionScore": 1-10,
   "monetizationScore": 1-10,
   "buildDifficulty": 1-10,
-  "reasoning": "ЧЕСТНО: есть ли сильные конкуренты? Почему можно войти? Почему нет? — на русском",
+  "reasoning": "Почему эта проблема реальна? Кто теряет деньги и сколько? — на русском",
   "tags": ["тег1", "тег2"]
 }
 
-urgency = насколько ГОРИТ: 10 = люди теряют деньги прямо сейчас, 1 = "было бы неплохо".
-isOpportunity=true ТОЛЬКО если:
-- Реальная B2B проблема которую люди УЖЕ пытаются решить (вручную, дорогими инструментами)
-- Клиент платёжеспособен и явно готов платить
-- Можно построить за <3 месяца
-- urgency ≥ 6`
+urgency: 10 = люди теряют деньги прямо сейчас, 1 = "было бы неплохо когда-нибудь".
+isOpportunity=true если: реальный денежный/временной ущерб + платёжеспособная аудитория + urgency ≥ 5`
 
   try {
     const response = await ai.messages.create({
@@ -575,6 +562,167 @@ async function sendTelegram(message) {
   } catch { /* telegram недоступен */ }
 }
 
+// ─── 9. АВТО-РЕСЁРЧ ТОП-ИДЕЙ (Claude Sonnet) ─────────────────────────────────
+
+const RESEARCH_PROMPT = `Ты эксперт-аналитик стартапов, специализирующийся на micro-SaaS и AI агентах.
+Сделай ГЛУБОКОЕ исследование этой бизнес-идеи. Будь конкретен с цифрами.
+ВАЖНО: весь текст в JSON должен быть на РУССКОМ языке.
+
+Идея: {TITLE}
+Описание: {DESCRIPTION}
+Проблема: {PROBLEM}
+Целевая аудитория: {AUDIENCE}
+
+Ответь ТОЛЬКО валидным JSON (без markdown, только JSON):
+{
+  "summary": "3-4 предложения — резюме возможности на русском",
+  "market_size": "Конкретный размер рынка с цифрами. Пример: '4.5М фрилансеров в США, рынок $2.1B'",
+  "competitors": [
+    {"name": "НазваниеКонкурента", "price": "$X/мес", "weakness": "Чего им не хватает — на русском"},
+    {"name": "НазваниеКонкурента2", "price": "$X/мес", "weakness": "Чего им не хватает — на русском"},
+    {"name": "НазваниеКонкурента3", "price": "$X/мес", "weakness": "Чего им не хватает — на русском"}
+  ],
+  "icp": "Точный портрет кто платит. Пример: 'Фриланс-дизайнер, 3-10 клиентов, зарабатывает $5-15k/мес, использует Gmail, злится на просроченные оплаты'",
+  "build_time_days": 14,
+  "weeks_to_first_revenue": 3,
+  "mrr_month1": 195,
+  "mrr_month3": 1014,
+  "revenue_potential": "Конкретный путь: Неделя 3 = первые $39, Месяц 1 = 5 клиентов = $195, Месяц 3 = 26 клиентов = $1014",
+  "speed_score": 8,
+  "build_plan": "Шаг 1: [конкретная задача] (Дни 1-3). Шаг 2: [конкретная задача] (Дни 4-7). Шаг 3: [конкретная задача] (Дни 8-14). Шаг 4: Запуск на Reddit + ProductHunt (Неделя 3).",
+  "first_action": "Самое важное что нужно сделать СЕГОДНЯ чтобы проверить эту идею"
+}
+
+speed_score: 10 = первые деньги через 1-2 недели, 1 = нужно 6+ месяцев.
+Будь реалистичен но оптимистичен для человека который строит с AI (Claude Code, Cursor).
+Предполагай базовые навыки разработки + AI инструменты.`
+
+async function autoResearchIdea(idea) {
+  console.log(`   🔬 Исследую: ${idea.title}...`)
+
+  const prompt = RESEARCH_PROMPT
+    .replace('{TITLE}', idea.title)
+    .replace('{DESCRIPTION}', idea.description || '')
+    .replace('{PROBLEM}', idea.problem || idea.description || '')
+    .replace('{AUDIENCE}', idea.target_audience || '')
+
+  try {
+    const response = await ai.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const raw = response.content[0].text
+    const text = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+    const data = JSON.parse(text)
+
+    // Сохраняем в Supabase
+    await db.from('research').upsert({
+      idea_title: idea.title,
+      summary: data.summary,
+      market_size: data.market_size,
+      competitors: data.competitors,
+      icp: data.icp,
+      build_time_days: data.build_time_days,
+      weeks_to_first_revenue: data.weeks_to_first_revenue,
+      mrr_month1: data.mrr_month1,
+      mrr_month3: data.mrr_month3,
+      revenue_potential: data.revenue_potential,
+      build_plan: data.build_plan,
+      speed_score: data.speed_score,
+    }, { onConflict: 'idea_title' })
+
+    // Форматируем конкурентов
+    const competitorList = (data.competitors || [])
+      .map(c => `  • ${c.name} ${c.price} — ${c.weakness}`)
+      .join('\n')
+
+    const msg = [
+      `🔬 <b>Авто-ресёрч: ${idea.title}</b>`,
+      `⭐ Оценка скаута: ${idea.total_score}/10`,
+      ``,
+      `📊 ${data.summary}`,
+      ``,
+      `💰 Рынок: ${data.market_size}`,
+      ``,
+      `🎯 Кто платит: ${data.icp}`,
+      ``,
+      `🏆 Конкуренты:`,
+      competitorList,
+      ``,
+      `⚡ Первые деньги: <b>${data.weeks_to_first_revenue} нед.</b>`,
+      `🔨 MVP: <b>${data.build_time_days} дней</b>`,
+      `💵 MRR м1: <b>$${data.mrr_month1}</b> | м3: <b>$${data.mrr_month3}</b>`,
+      ``,
+      `🛠 ${data.build_plan}`,
+      ``,
+      `✅ Первый шаг: ${data.first_action}`,
+    ].join('\n')
+
+    // Telegram лимит 4096 символов
+    const truncated = msg.length > 4000 ? msg.slice(0, 3990) + '...' : msg
+    await sendTelegram(truncated)
+
+    console.log(`   ✅ Ресёрч готов + отправлен в Telegram`)
+    return data
+  } catch (err) {
+    console.log(`   ⚠️ Ошибка ресёрча для "${idea.title}": ${err.message}`)
+    return null
+  }
+}
+
+// ─── 10. ЗАПИСЬ ЛОГА В ФАЙЛ ───────────────────────────────────────────────────
+
+function writeScoutLog({ date, signals, ideas, saved, topResearched, duration }) {
+  // signals: { hn, reddit, ph, github, so }
+  const dateStr = date.toLocaleDateString('ru-RU').replace(/\./g, '-')
+  const isoDate = date.toISOString().split('T')[0]
+
+  const ideasTable = ideas.length > 0
+    ? [
+        `| Идея | Score | Источник |`,
+        `|------|-------|---------|`,
+        ...ideas.map(i => `| ${i.title} | ${i.total_score} | ${i.source} |`),
+      ].join('\n')
+    : '_Новых идей не найдено_'
+
+  const researchSection = topResearched.length > 0
+    ? topResearched.map(i => `- **${i.title}** (${i.total_score}) — авто-ресёрч отправлен в Telegram`).join('\n')
+    : '_Идей для авто-ресёрча не было (нет score ≥ 8.0)_'
+
+  const content = [
+    `# Scout Log — ${dateStr}`,
+    ``,
+    `## Статистика`,
+    `- Всего сигналов просканировано: ${signals.hn + signals.reddit + signals.ph + signals.github + signals.so}`,
+    `  - 🟡 Hacker News: ${signals.hn}`,
+    `  - 🔴 Reddit: ${signals.reddit}`,
+    `  - 🟠 Product Hunt: ${signals.ph}`,
+    `  - 🟣 GitHub: ${signals.github}`,
+    `  - 🔵 Stack Overflow: ${signals.so}`,
+    `- Идей прошло фильтр Claude: ${ideas.length}`,
+    `- Сохранено в базу (новые): ${saved}`,
+    `- Авто-ресёрч запущен для: ${topResearched.length} идей (score ≥ 8.0)`,
+    `- Время выполнения: ${duration} сек`,
+    ``,
+    `## Новые идеи сегодня`,
+    ideasTable,
+    ``,
+    `## Авто-ресёрч (Claude Sonnet)`,
+    researchSection,
+  ].join('\n')
+
+  try {
+    const logsDir = join(__dirname, '..', '..', '..', '..', 'pipeline', 'logs')
+    mkdirSync(logsDir, { recursive: true })
+    writeFileSync(join(logsDir, `scout-${isoDate}.md`), content, 'utf8')
+    console.log(`   📄 Лог записан: pipeline/logs/scout-${isoDate}.md`)
+  } catch (err) {
+    console.log(`   ⚠️ Не удалось записать лог: ${err.message}`)
+  }
+}
+
 // ─── ГЛАВНАЯ ФУНКЦИЯ ──────────────────────────────────────────────────────────
 
 async function main() {
@@ -632,9 +780,23 @@ async function main() {
   const saved = await saveToDatabase(ideas)
   console.log(`   Сохранено: ${saved} (дубликаты пропущены)`)
 
-  // Шаг 4: Telegram отчёт
+  // Шаг 4: Авто-ресёрч для топ-идей (score ≥ 8.0)
+  const topNewIdeas = ideas.filter(i => i.total_score >= 8.0)
+  if (topNewIdeas.length > 0) {
+    console.log(`\n🔬 Авто-ресёрч для ${topNewIdeas.length} топ-идей (score ≥ 8.0)...`)
+    for (const idea of topNewIdeas) {
+      await autoResearchIdea(idea)
+      await new Promise(r => setTimeout(r, 1000))
+    }
+  }
+
+  // Шаг 5: Telegram отчёт
   const duration = Math.round((Date.now() - startTime) / 1000)
   const sortedIdeas = ideas.sort((a, b) => b.total_score - a.total_score)
+
+  // Актуальный счётчик из базы (единый источник правды)
+  const { data: allIdeas } = await db.from('ideas').select('status, total_score')
+  const totalActive = (allIdeas ?? []).filter(i => i.status !== 'archived' && i.total_score >= 7.0).length
 
   const hnFound = ideas.filter(i => i.source === 'hackernews').length
   const redditFound = ideas.filter(i => i.source.startsWith('reddit')).length
@@ -645,18 +807,36 @@ async function main() {
   const report = [
     `🤖 ${new Date().toLocaleDateString('ru-RU')} — скаут отработал`,
     `💡 Новых горячих идей: <b>${saved}</b>`,
+    `📊 Всего идей на сайте: <b>${totalActive}</b>`,
+    topNewIdeas.length > 0 ? `🔬 Авто-ресёрч отправлен для ${topNewIdeas.length} топ-идей (score ≥ 8.0)` : '',
     ``,
     `🟡 HN: ${hnSignals.length} → ${hnFound}`,
     `🔴 Reddit: ${redditSignals.length} → ${redditFound}`,
     `🟠 Product Hunt: ${phSignals.length} → ${phFound}`,
     `🟣 GitHub: ${githubSignals.length} → ${ghFound}`,
     `🔵 Stack Overflow: ${soSignals.length} → ${soFound}`,
-  ].join('\n')
+  ].filter(l => l !== '').join('\n')
 
   if (TELEGRAM_TOKEN) {
     await sendTelegram(report)
     console.log('\n📱 Telegram уведомление отправлено')
   }
+
+  // Шаг 6: Запись лога в файл
+  writeScoutLog({
+    date: new Date(),
+    signals: {
+      hn: hnSignals.length,
+      reddit: redditSignals.length,
+      ph: phSignals.length,
+      github: githubSignals.length,
+      so: soSignals.length,
+    },
+    ideas,
+    saved,
+    topResearched: topNewIdeas,
+    duration,
+  })
 
   console.log('\n─'.repeat(50))
   console.log(`✅ Готово! Найдено ${ideas.length} горящих идей, сохранено ${saved}`)

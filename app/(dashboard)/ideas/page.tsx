@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { Search, Loader2, Zap, Clock, TrendingUp, Users, ChevronDown, ChevronUp } from "lucide-react"
 
-type Tier = "Все" | "S" | "A" | "B"
+type Tier = "Все" | "S" | "A" | "B" | "Archived"
 
 interface Idea {
   id: number
@@ -178,11 +178,13 @@ export default function IdeasPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/ideas')
+    setLoading(true)
+    const url = filter === "Archived" ? '/api/ideas?archived=true' : '/api/ideas'
+    fetch(url)
       .then(r => r.json())
-      .then(data => { setIdeas(data); setLoading(false) })
+      .then(data => { setIdeas(Array.isArray(data) ? data : []); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [])
+  }, [filter])
 
   const handleResearch = async (idea: Idea) => {
     setResearching(idea.title)
@@ -203,7 +205,7 @@ export default function IdeasPage() {
   }
 
   const filtered = ideas
-    .filter(i => filter === "Все" || i.tier === filter)
+    .filter(i => filter === "Все" || filter === "Archived" || i.tier === filter)
     .filter(i => !search.trim() || i.title.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       switch (sort) {
@@ -265,7 +267,7 @@ export default function IdeasPage() {
       </div>
 
       {/* Тир-фильтры */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         {(["Все", "S", "A", "B"] as Tier[]).map(t => (
           <button key={t} onClick={() => setFilter(t)} style={{
             padding: "6px 16px", borderRadius: 8,
@@ -277,6 +279,15 @@ export default function IdeasPage() {
             {t === "Все" ? `All (${ideas.length})` : t === "S" ? `🔥 Hot (${ideas.filter(i => i.tier === "S").length})` : t === "A" ? `Middle (${ideas.filter(i => i.tier === "A").length})` : `Low (${ideas.filter(i => i.tier === "B").length})`}
           </button>
         ))}
+        <button onClick={() => setFilter("Archived")} style={{
+          padding: "6px 16px", borderRadius: 8,
+          border: filter === "Archived" ? "1px solid #EF4444" : "1px solid var(--border)",
+          background: filter === "Archived" ? "rgba(239,68,68,0.1)" : "transparent",
+          color: filter === "Archived" ? "#EF4444" : "var(--text-muted)",
+          fontSize: 13, cursor: "pointer",
+        }}>
+          🗄 Archived
+        </button>
         {(search || sort !== "score_desc") && (
           <button onClick={() => { setSearch(""); setSort("score_desc"); setFilter("Все") }} style={{
             padding: "6px 12px", borderRadius: 8, marginLeft: "auto",

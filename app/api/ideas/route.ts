@@ -7,26 +7,31 @@ function getTier(score: number): 'S' | 'A' | 'B' {
   return 'B'
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Порог 7.0 — совпадает со скаутом (run-daily-scout.mjs line 433)
-  // Было 7.5 → идеи 7.0–7.4 сохранялись в базе но не показывались на сайте
-  const { data, error } = await supabase
-    .from('ideas')
-    .select('*')
-    .gte('total_score', 7.0)
-    .order('total_score', { ascending: false })
+  const { searchParams } = new URL(request.url)
+  const showArchived = searchParams.get('archived') === 'true'
+
+  let query = supabase.from('ideas').select('*').order('total_score', { ascending: false })
+
+  if (showArchived) {
+    query = query.eq('status', 'archived')
+  } else {
+    query = query.gte('total_score', 7.0).neq('status', 'archived')
+  }
+
+  const { data, error } = await query
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const ideas = (data ?? []).map((row, i) => ({
-    id: i + 1,
+  const ideas = (data ?? []).map((row) => ({
+    id: row.id,
     title: row.title,
     description: row.description ?? '',
     score: row.total_score ?? 0,
