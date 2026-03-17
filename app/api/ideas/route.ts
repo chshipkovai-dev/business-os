@@ -45,6 +45,7 @@ export async function GET(request: Request) {
     price: '',
     tags: row.tags ?? [],
     status: row.status ?? 'new',
+    created_at: row.created_at ?? null,
   }))
 
   return NextResponse.json(ideas)

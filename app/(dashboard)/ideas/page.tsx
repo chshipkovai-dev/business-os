@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { Search, Loader2, Zap, Clock, TrendingUp, Users, ChevronDown, ChevronUp } from "lucide-react"
 
-type Tier = "Все" | "S" | "A" | "B" | "Archived"
+type Tier = "Все" | "S" | "A" | "B" | "New" | "Archived"
 
 interface Idea {
   id: number
@@ -17,6 +17,7 @@ interface Idea {
   audience: string
   tags: string[]
   status: string
+  created_at: string | null
   problem?: string
   target_audience?: string
 }
@@ -154,11 +155,12 @@ function ResearchPanel({ research }: { research: Research }) {
   )
 }
 
-type SortKey = "score_desc" | "score_asc" | "alpha_asc" | "alpha_desc" | "market" | "mono" | "speed" | "competition"
+type SortKey = "score_desc" | "score_asc" | "newest" | "alpha_asc" | "alpha_desc" | "market" | "mono" | "speed" | "competition"
 
 const sortOptions: { value: SortKey; label: string }[] = [
   { value: "score_desc", label: "Оценка ↓" },
   { value: "score_asc",  label: "Оценка ↑" },
+  { value: "newest",     label: "🆕 Новые первыми" },
   { value: "alpha_asc",  label: "A → Z" },
   { value: "alpha_desc", label: "Z → A" },
   { value: "market",     label: "Рынок ↓" },
@@ -176,6 +178,12 @@ export default function IdeasPage() {
   const [researching, setResearching] = useState<string | null>(null)
   const [results, setResults] = useState<Record<string, Research>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
+
+  const isNew = (idea: Idea) => {
+    if (!idea.created_at) return false
+    const days = (Date.now() - new Date(idea.created_at).getTime()) / (1000 * 60 * 60 * 24)
+    return days <= 7
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -205,12 +213,17 @@ export default function IdeasPage() {
   }
 
   const filtered = ideas
-    .filter(i => filter === "Все" || filter === "Archived" || i.tier === filter)
+    .filter(i => {
+      if (filter === "Все" || filter === "Archived") return true
+      if (filter === "New") return isNew(i)
+      return i.tier === filter
+    })
     .filter(i => !search.trim() || i.title.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       switch (sort) {
         case "score_desc":   return b.score - a.score
         case "score_asc":    return a.score - b.score
+        case "newest":       return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
         case "alpha_asc":    return a.title.localeCompare(b.title, "ru")
         case "alpha_desc":   return b.title.localeCompare(a.title, "ru")
         case "market":       return b.market - a.market
@@ -279,6 +292,15 @@ export default function IdeasPage() {
             {t === "Все" ? `All (${ideas.length})` : t === "S" ? `🔥 Hot (${ideas.filter(i => i.tier === "S").length})` : t === "A" ? `Middle (${ideas.filter(i => i.tier === "A").length})` : `Low (${ideas.filter(i => i.tier === "B").length})`}
           </button>
         ))}
+        <button onClick={() => { setFilter("New"); setSort("newest") }} style={{
+          padding: "6px 16px", borderRadius: 8,
+          border: filter === "New" ? "1px solid #22C55E" : "1px solid var(--border)",
+          background: filter === "New" ? "rgba(34,197,94,0.12)" : "transparent",
+          color: filter === "New" ? "#22C55E" : "var(--text-muted)",
+          fontSize: 13, fontWeight: filter === "New" ? 500 : 400, cursor: "pointer",
+        }}>
+          🆕 Новые (7д) ({ideas.filter(isNew).length})
+        </button>
         <button onClick={() => setFilter("Archived")} style={{
           padding: "6px 16px", borderRadius: 8,
           border: filter === "Archived" ? "1px solid #EF4444" : "1px solid var(--border)",
@@ -330,6 +352,13 @@ export default function IdeasPage() {
                           color: tierTextColors[idea.tier] || tierTextColors.B,
                           fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
                         }}>{idea.tier === "S" ? "🔥 Hot" : idea.tier === "A" ? "Middle" : "Low"}</span>
+                        {isNew(idea) && (
+                          <span style={{
+                            background: "rgba(34,197,94,0.15)", color: "#22C55E",
+                            fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 6,
+                            letterSpacing: "0.3px",
+                          }}>NEW</span>
+                        )}
                         {idea.status !== 'new' && (
                           <span style={{
                             background: (statusColors[idea.status] || '#F59E0B') + '20',
