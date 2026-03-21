@@ -3,6 +3,17 @@ import { useState, useEffect } from "react"
 import { Search, Loader2, Zap, Clock, TrendingUp, Users, ChevronDown, ChevronUp } from "lucide-react"
 
 type Tier = "Все" | "S" | "A" | "B" | "New" | "Archived"
+type Sphere = "все" | "freelance" | "local-biz" | "saas-dev" | "b2b-sales" | "professional" | "czech"
+
+const SPHERES: { value: Sphere; label: string; emoji: string; color: string }[] = [
+  { value: "все",          label: "Все сферы",       emoji: "🌐", color: "#6366F1" },
+  { value: "freelance",    label: "Фриланс",          emoji: "🧑‍💻", color: "#10B981" },
+  { value: "local-biz",    label: "Малый бизнес",     emoji: "🏪", color: "#F59E0B" },
+  { value: "saas-dev",     label: "SaaS / Dev",       emoji: "💻", color: "#3B82F6" },
+  { value: "b2b-sales",    label: "B2B / Продажи",    emoji: "📊", color: "#8B5CF6" },
+  { value: "professional", label: "Профессии",        emoji: "⚖️", color: "#EC4899" },
+  { value: "czech",        label: "🇨🇿 Чехия",        emoji: "🇨🇿", color: "#EF4444" },
+]
 
 interface Idea {
   id: number
@@ -171,6 +182,7 @@ const sortOptions: { value: SortKey; label: string }[] = [
 
 export default function IdeasPage() {
   const [filter, setFilter] = useState<Tier>("Все")
+  const [sphere, setSphere] = useState<Sphere>("все")
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState<SortKey>("score_desc")
   const [ideas, setIdeas] = useState<Idea[]>([])
@@ -218,6 +230,7 @@ export default function IdeasPage() {
       if (filter === "New") return isNew(i)
       return i.tier === filter
     })
+    .filter(i => sphere === "все" || (i.tags || []).includes(`sphere:${sphere}`))
     .filter(i => !search.trim() || i.title.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       switch (sort) {
@@ -279,6 +292,34 @@ export default function IdeasPage() {
         </select>
       </div>
 
+      {/* Фильтры по сфере */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        {SPHERES.map(s => {
+          const count = s.value === "все"
+            ? ideas.length
+            : ideas.filter(i => (i.tags || []).includes(`sphere:${s.value}`)).length
+          const active = sphere === s.value
+          return (
+            <button key={s.value} onClick={() => setSphere(s.value)} style={{
+              padding: "5px 14px", borderRadius: 20,
+              border: active ? `1px solid ${s.color}` : "1px solid var(--border)",
+              background: active ? `${s.color}22` : "transparent",
+              color: active ? s.color : "var(--text-muted)",
+              fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s",
+            }}>
+              <span>{s.emoji}</span>
+              <span>{s.label}</span>
+              <span style={{
+                background: active ? `${s.color}33` : "var(--bg-elevated)",
+                color: active ? s.color : "var(--text-muted)",
+                fontSize: 10, fontWeight: 600, padding: "1px 5px", borderRadius: 999,
+              }}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Тир-фильтры */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         {(["Все", "S", "A", "B"] as Tier[]).map(t => (
@@ -310,8 +351,8 @@ export default function IdeasPage() {
         }}>
           🗄 Archived
         </button>
-        {(search || sort !== "score_desc") && (
-          <button onClick={() => { setSearch(""); setSort("score_desc"); setFilter("Все") }} style={{
+        {(search || sort !== "score_desc" || sphere !== "все") && (
+          <button onClick={() => { setSearch(""); setSort("score_desc"); setFilter("Все"); setSphere("все") }} style={{
             padding: "6px 12px", borderRadius: 8, marginLeft: "auto",
             border: "1px solid rgba(99,102,241,0.25)", background: "rgba(99,102,241,0.06)",
             color: "var(--text-secondary)", fontSize: 12, cursor: "pointer", transition: "all 0.15s",
@@ -379,7 +420,18 @@ export default function IdeasPage() {
                       </div>
 
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {(idea.tags || []).map(tag => (
+                        {(() => {
+                          const sphereTag = (idea.tags || []).find(t => t.startsWith('sphere:'))?.replace('sphere:', '') as Sphere | undefined
+                          const sphereMeta = sphereTag ? SPHERES.find(s => s.value === sphereTag) : null
+                          return sphereMeta ? (
+                            <span style={{
+                              background: `${sphereMeta.color}18`, color: sphereMeta.color,
+                              fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999,
+                              border: `1px solid ${sphereMeta.color}33`,
+                            }}>{sphereMeta.emoji} {sphereMeta.label}</span>
+                          ) : null
+                        })()}
+                        {(idea.tags || []).filter(t => !t.startsWith('sphere:')).map(tag => (
                           <span key={tag} style={{
                             background: "var(--bg-elevated)", color: "var(--text-muted)",
                             fontSize: 11, padding: "2px 8px", borderRadius: 999,
