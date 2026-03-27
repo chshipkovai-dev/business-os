@@ -17,6 +17,8 @@ import { logHistory } from "@/lib/history"
 const CUSTOM_KEY = "ailnex_custom_tasks"
 const DONE_KEY = "ailnex_task_done"
 
+type TaskWithSource = Task & { source?: string; done?: boolean }
+
 const CATEGORIES: TaskCategory[] = ["money", "work", "call", "other"]
 const PRIORITIES: { value: TaskPriority; label: string }[] = [
   { value: "high", label: "🔴 Высокий" },
@@ -149,12 +151,13 @@ function AddTaskModal({ onAdd, onClose }: { onAdd: (t: Task) => void; onClose: (
 
 // ─── Task Row ──────────────────────────────────────────────────────────────────
 
-function TaskRow({ task, done, onToggle, onDelete, onClick }: {
+function TaskRow({ task, done, onToggle, onDelete, onClick, isBot }: {
   task: Task
   done: boolean
   onToggle: () => void
   onDelete?: () => void
   onClick: () => void
+  isBot?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
   const catColor = categoryColor[task.category]
@@ -210,6 +213,11 @@ function TaskRow({ task, done, onToggle, onDelete, onClick }: {
 
       {/* Tags */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        {isBot && !done && (
+          <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 20, background: "rgba(99,102,241,0.1)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+            🤖
+          </span>
+        )}
         {task.priority === "high" && !done && (
           <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 20, background: "rgba(239,68,68,0.12)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.25)" }}>
             🔴 Срочно
@@ -337,6 +345,7 @@ type Filter = "all" | "active" | "done"
 
 export default function PlannerPage() {
   const [customTasks, setCustomTasks] = useState<Task[]>([])
+  const [botTasks, setBotTasks] = useState<TaskWithSource[]>([])
   const [doneState, setDoneState] = useState<Record<string, boolean>>({})
   const [filter, setFilter] = useState<Filter>("active")
   const [catFilter, setCatFilter] = useState<TaskCategory | "all">("all")
@@ -348,11 +357,17 @@ export default function PlannerPage() {
     setCustomTasks(loadCustom())
     setDoneState(loadDone())
     setMounted(true)
+    // Load bot tasks from Supabase
+    fetch("/api/tasks")
+      .then(r => r.json())
+      .then(data => Array.isArray(data) ? setBotTasks(data) : [])
+      .catch(() => {})
   }, [])
 
   if (!mounted) return null
 
-  const allTasks = [...defaultTasks, ...customTasks]
+  const botTaskIds = new Set(botTasks.map(t => t.id))
+  const allTasks: TaskWithSource[] = [...defaultTasks, ...botTasks.filter(t => !t.done), ...customTasks]
 
   const isDone = (id: string) => doneState[id] ?? false
 
@@ -372,6 +387,11 @@ export default function PlannerPage() {
   }
 
   const handleDelete = (id: string) => {
+    if (botTaskIds.has(id)) {
+      fetch(`/api/tasks?id=${id}`, { method: "DELETE" }).catch(() => {})
+      setBotTasks(prev => prev.filter(t => t.id !== id))
+      return
+    }
     const task = customTasks.find(t => t.id === id)
     const updated = customTasks.filter(t => t.id !== id)
     setCustomTasks(updated)
@@ -492,8 +512,9 @@ export default function PlannerPage() {
                     task={task}
                     done={isDone(task.id)}
                     onToggle={() => toggleDone(task.id, task.title)}
-                    onDelete={task.id.startsWith("task-") ? () => handleDelete(task.id) : undefined}
+                    onDelete={(task.id.startsWith("task-") || botTaskIds.has(task.id)) ? () => handleDelete(task.id) : undefined}
                     onClick={() => setDetailTask(task)}
+                    isBot={botTaskIds.has(task.id)}
                   />
                 ))}
               </div>
