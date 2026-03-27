@@ -14,6 +14,20 @@
   --danger: #EF4444;
 }
 
+[data-theme="light"] {
+  --bg-base: #F5F5FA;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #EBEBF5;
+  --border: #D8D8E8;
+  --accent: #6366F1;
+  --text-primary: #0A0A1A;
+  --text-secondary: #4A4A6A;
+  --text-muted: #8888A8;
+  --success: #16A34A;
+  --warning: #D97706;
+  --danger: #DC2626;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -30,3 +44,4 @@ body {
 ::selection { background: rgba(99,102,241,0.3); }
 
 @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }

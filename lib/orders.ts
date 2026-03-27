@@ -8,8 +8,9 @@ export interface Order {
   status: OrderStatus
   source?: string      // Upwork, Referral, Ailnex, Direct
   budget?: string      // "50k CZK", "$500", etc.
-  deadline?: string
+  deadline?: string    // ISO date: "2026-04-15"
   notes?: string
+  projectId?: string   // link to companyProject.id
 }
 
 export const orders: Order[] = [
@@ -22,6 +23,7 @@ export const orders: Order[] = [
     source: "Referral",
     budget: "50–100k CZK",
     notes: "Звонок 26 марта. Уточнить требования, текущий стек, сроки.",
+    projectId: "ailnex",
   },
 ]
 

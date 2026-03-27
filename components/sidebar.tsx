@@ -2,8 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGrid, ShoppingBag, Lightbulb, Archive, ChevronDown, ChevronRight, FolderOpen, TrendingUp } from "lucide-react"
-import { useState, Suspense } from "react"
+import { LayoutGrid, ShoppingBag, Lightbulb, Archive, ChevronDown, ChevronRight, FolderOpen, TrendingUp, Sun, Moon, Clock } from "lucide-react"
+import { useState, useEffect, Suspense } from "react"
+
+const THEME_KEY = "ailnex_theme"
 
 const globalNav = [
   { href: "/", label: "Доска проектов", icon: LayoutGrid },
@@ -12,6 +14,7 @@ const globalNav = [
 
 const archiveLinks = [
   { href: "/archived-projects", label: "Архив проектов", icon: Archive },
+  { href: "/history", label: "История", icon: Clock },
   { href: "/ideas", label: "Идеи скаута", icon: Lightbulb },
   { href: "/all-projects", label: "Все идеи", icon: FolderOpen },
   { href: "/trends", label: "Тренды", icon: TrendingUp },
@@ -38,6 +41,20 @@ function NavLink({ href, label, icon: Icon, active }: { href: string; label: str
 function SidebarInner() {
   const pathname = usePathname()
   const [archiveOpen, setArchiveOpen] = useState(false)
+  const [theme, setTheme] = useState<"dark" | "light">("dark")
+
+  useEffect(() => {
+    const saved = (localStorage.getItem(THEME_KEY) || "dark") as "dark" | "light"
+    setTheme(saved)
+    document.documentElement.setAttribute("data-theme", saved)
+  }, [])
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark"
+    setTheme(next)
+    localStorage.setItem(THEME_KEY, next)
+    document.documentElement.setAttribute("data-theme", next)
+  }
 
   return (
     <aside style={{
@@ -123,10 +140,17 @@ function SidebarInner() {
       </nav>
 
       {/* Bottom */}
-      <div style={{ paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-        <div style={{ padding: "4px 10px", fontSize: 11, color: "var(--text-muted)" }}>
-          v0.2
-        </div>
+      <div style={{ paddingTop: 8, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px 0" }}>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>v0.2</span>
+        <button
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, lineHeight: 1, transition: "color 0.15s" }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"}
+        >
+          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+        </button>
       </div>
     </aside>
   )
