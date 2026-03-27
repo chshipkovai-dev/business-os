@@ -8,6 +8,7 @@ export interface CompanyProject {
   url?: string
   nextStep?: string
   tags: string[]
+  archived?: boolean
 }
 
 export const companyProjects: CompanyProject[] = [
@@ -53,6 +54,7 @@ export const companyProjects: CompanyProject[] = [
     stage: "idea",
     nextStep: "Phase 0: домен + GitHub + Supabase + Telegram бот",
     tags: ["EdTech", "Czech", "language learning"],
+    archived: true,
   },
   {
     id: "contractagent",
@@ -60,6 +62,7 @@ export const companyProjects: CompanyProject[] = [
     description: "AI анализ контрактов для B2B. Заморожен — длинный цикл продаж, CFO трудно достичь.",
     stage: "frozen",
     tags: ["SaaS", "B2B", "contracts"],
+    archived: true,
   },
 ]
 

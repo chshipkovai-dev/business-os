@@ -111,7 +111,7 @@ function KanbanColumn({ stage }: { stage: CompanyProjectStage }) {
   const color = stageColor[stage]
   const emoji = stageEmoji[stage]
   const label = stageLabel[stage]
-  const items = companyProjects.filter(p => p.stage === stage)
+  const items = companyProjects.filter(p => p.stage === stage && !p.archived)
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -169,7 +169,7 @@ export default function CompanyBoard() {
           Ailnex — Доска проектов
         </h1>
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, marginBottom: 0 }}>
-          {companyProjects.length} проектов · статус в реальном времени
+          {companyProjects.filter(p => !p.archived).length} проектов · статус в реальном времени
         </p>
       </div>
 

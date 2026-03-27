@@ -11,8 +11,9 @@ const globalNav = [
 ]
 
 const archiveLinks = [
+  { href: "/archived-projects", label: "Архив проектов", icon: Archive },
   { href: "/ideas", label: "Идеи скаута", icon: Lightbulb },
-  { href: "/all-projects", label: "Все проекты", icon: FolderOpen },
+  { href: "/all-projects", label: "Все идеи", icon: FolderOpen },
   { href: "/trends", label: "Тренды", icon: TrendingUp },
 ]
 
