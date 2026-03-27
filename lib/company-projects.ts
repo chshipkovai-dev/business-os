@@ -1,4 +1,4 @@
-export type CompanyProjectStage = "idea" | "building" | "launched" | "frozen"
+export type CompanyProjectStage = "idea" | "building" | "launched"
 
 export interface CompanyProject {
   id: string
@@ -16,7 +16,7 @@ export const companyProjects: CompanyProject[] = [
     id: "ailnex",
     title: "Ailnex",
     description: "Automation agency — помогаем бизнесу автоматизировать процессы через AI и n8n.",
-    stage: "launched",
+    stage: "building",
     url: "https://ailnex.com",
     nextStep: "Снять видео, подключить GA4, запустить первые лиды",
     tags: ["agency", "automation", "AI"],
@@ -25,7 +25,7 @@ export const companyProjects: CompanyProject[] = [
     id: "invoicepilot",
     title: "InvoicePilot",
     description: "AI генерирует 3 письма-напоминания для неоплаченных инвойсов. Для фрилансеров. $39/мес.",
-    stage: "launched",
+    stage: "building",
     url: "https://invoicepilot.app",
     nextStep: "Запустить маркетинг, первые платящие клиенты",
     tags: ["SaaS", "invoices", "freelancers"],
@@ -59,8 +59,8 @@ export const companyProjects: CompanyProject[] = [
   {
     id: "contractagent",
     title: "ContractAgent",
-    description: "AI анализ контрактов для B2B. Заморожен — длинный цикл продаж, CFO трудно достичь.",
-    stage: "frozen",
+    description: "AI анализ контрактов для B2B. Длинный цикл продаж, CFO трудно достичь.",
+    stage: "idea",
     tags: ["SaaS", "B2B", "contracts"],
     archived: true,
   },
@@ -70,19 +70,16 @@ export const stageLabel: Record<CompanyProjectStage, string> = {
   idea: "Идея",
   building: "Разработка",
   launched: "Запущен",
-  frozen: "Заморожен",
 }
 
 export const stageColor: Record<CompanyProjectStage, string> = {
   idea: "#F59E0B",
   building: "#6366F1",
   launched: "#22C55E",
-  frozen: "#525472",
 }
 
 export const stageEmoji: Record<CompanyProjectStage, string> = {
   idea: "💡",
   building: "🛠",
   launched: "🚀",
-  frozen: "❄️",
 }
