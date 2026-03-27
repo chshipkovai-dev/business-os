@@ -25,4 +25,21 @@ export const categoryColor: Record<TaskCategory, string> = {
 }
 
 // Denis говорит "запиши" — Claude добавляет задачи сюда
-export const defaultTasks: Task[] = []
+export const defaultTasks: Task[] = [
+  {
+    id: "default-1",
+    title: "Добавить INTERNAL_TOKEN в Vercel",
+    notes: "Vercel Dashboard → проект → Settings → Environment Variables → INTERNAL_TOKEN = ailnex_internal_2026",
+    dueDate: "2026-03-28",
+    category: "work",
+    priority: "normal",
+  },
+  {
+    id: "default-2",
+    title: "Установить Telegram webhook для бота",
+    notes: "Открыть в браузере: https://api.telegram.org/botBOT_TOKEN/setWebhook?url=https://business-os-alpha-rust.vercel.app/api/telegram",
+    dueDate: "2026-03-28",
+    category: "work",
+    priority: "normal",
+  },
+]
