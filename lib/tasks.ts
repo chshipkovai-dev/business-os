@@ -27,6 +27,14 @@ export const categoryColor: Record<TaskCategory, string> = {
 // Denis говорит "запиши" — Claude добавляет задачи сюда
 export const defaultTasks: Task[] = [
   {
+    id: "default-0",
+    title: "Ailnex.com — анализ и переработка UI",
+    notes: "Провести полный аудит сайта: найти ошибки, что не нравится в дизайне, переделать UI. Главная задача дня.",
+    dueDate: "2026-03-28",
+    category: "work",
+    priority: "high",
+  },
+  {
     id: "default-1",
     title: "Добавить INTERNAL_TOKEN в Vercel",
     notes: "Vercel Dashboard → проект → Settings → Environment Variables → INTERNAL_TOKEN = ailnex_internal_2026",
