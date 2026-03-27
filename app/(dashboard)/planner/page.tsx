@@ -1,0 +1,516 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Plus, Trash2, Check } from "lucide-react"
+import {
+  defaultTasks,
+  categoryLabel,
+  categoryColor,
+  type Task,
+  type TaskCategory,
+  type TaskPriority,
+} from "@/lib/tasks"
+import { Modal, fieldStyle, labelStyle, fieldGroupStyle, SubmitButton } from "@/components/modal"
+import { MetricCard } from "@/components/metric-card"
+import { logHistory } from "@/lib/history"
+
+const CUSTOM_KEY = "ailnex_custom_tasks"
+const DONE_KEY = "ailnex_task_done"
+
+const CATEGORIES: TaskCategory[] = ["money", "work", "call", "other"]
+const PRIORITIES: { value: TaskPriority; label: string }[] = [
+  { value: "high", label: "🔴 Высокий" },
+  { value: "normal", label: "🟡 Средний" },
+  { value: "low", label: "⚪ Низкий" },
+]
+
+// ─── LocalStorage ─────────────────────────────────────────────────────────────
+
+function loadCustom(): Task[] {
+  if (typeof window === "undefined") return []
+  try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]") } catch { return [] }
+}
+
+function saveCustom(t: Task[]) { localStorage.setItem(CUSTOM_KEY, JSON.stringify(t)) }
+
+function loadDone(): Record<string, boolean> {
+  if (typeof window === "undefined") return {}
+  try { return JSON.parse(localStorage.getItem(DONE_KEY) || "{}") } catch { return {} }
+}
+
+function saveDone(d: Record<string, boolean>) { localStorage.setItem(DONE_KEY, JSON.stringify(d)) }
+
+// ─── Date helpers ──────────────────────────────────────────────────────────────
+
+type Group = "overdue" | "today" | "tomorrow" | "week" | "later" | "nodate"
+
+function getGroup(dueDate?: string): Group {
+  if (!dueDate) return "nodate"
+  const due = new Date(dueDate)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate())
+  const diff = Math.round((dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (diff < 0) return "overdue"
+  if (diff === 0) return "today"
+  if (diff === 1) return "tomorrow"
+  if (diff <= 7) return "week"
+  return "later"
+}
+
+const GROUP_ORDER: Group[] = ["overdue", "today", "tomorrow", "week", "later", "nodate"]
+
+const groupMeta: Record<Group, { label: string; color: string }> = {
+  overdue: { label: "🔴 Просрочено", color: "#EF4444" },
+  today: { label: "📅 Сегодня", color: "#6366F1" },
+  tomorrow: { label: "📆 Завтра", color: "#F59E0B" },
+  week: { label: "📋 На этой неделе", color: "#3B82F6" },
+  later: { label: "🗓 Позже", color: "#525472" },
+  nodate: { label: "📌 Без даты", color: "#525472" },
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })
+}
+
+// ─── Add Task Modal ────────────────────────────────────────────────────────────
+
+function AddTaskModal({ onAdd, onClose }: { onAdd: (t: Task) => void; onClose: () => void }) {
+  const [form, setForm] = useState({
+    title: "", notes: "", category: "work" as TaskCategory,
+    priority: "normal" as TaskPriority, dueDate: "",
+  })
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!form.title.trim()) return
+    onAdd({
+      id: `task-${Date.now()}`,
+      title: form.title.trim(),
+      notes: form.notes.trim() || undefined,
+      category: form.category,
+      priority: form.priority,
+      dueDate: form.dueDate || undefined,
+    })
+    onClose()
+  }
+
+  return (
+    <Modal title="Новая задача" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Название *</label>
+          <input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)}
+            placeholder="Что нужно сделать?" autoFocus
+            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
+            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+        </div>
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Заметки</label>
+          <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 64 }}
+            value={form.notes} onChange={e => set("notes", e.target.value)}
+            placeholder="Детали..."
+            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
+            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          <div>
+            <label style={labelStyle}>Категория</label>
+            <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.category}
+              onChange={e => set("category", e.target.value)}
+              onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
+              onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}>
+              {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Приоритет</label>
+            <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.priority}
+              onChange={e => set("priority", e.target.value)}
+              onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
+              onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}>
+              {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Дата</label>
+          <input type="date" style={{ ...fieldStyle, colorScheme: "dark" }} value={form.dueDate}
+            onChange={e => set("dueDate", e.target.value)}
+            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
+            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+        </div>
+        <SubmitButton label="Добавить задачу" />
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Task Row ──────────────────────────────────────────────────────────────────
+
+function TaskRow({ task, done, onToggle, onDelete, onClick }: {
+  task: Task
+  done: boolean
+  onToggle: () => void
+  onDelete?: () => void
+  onClick: () => void
+}) {
+  const [hovered, setHovered] = useState(false)
+  const catColor = categoryColor[task.category]
+
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "11px 14px",
+        background: done ? "transparent" : "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        borderLeft: `3px solid ${done ? "var(--border)" : catColor}`,
+        borderRadius: 10,
+        cursor: "pointer",
+        transition: "all 0.15s",
+        opacity: done ? 0.5 : 1,
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onClick}
+    >
+      {/* Checkbox */}
+      <button
+        onClick={e => { e.stopPropagation(); onToggle() }}
+        style={{
+          width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+          border: `2px solid ${done ? catColor : "var(--border)"}`,
+          background: done ? catColor : "transparent",
+          cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.15s",
+        }}
+      >
+        {done && <Check size={11} color="#fff" strokeWidth={3} />}
+      </button>
+
+      {/* Title + notes */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 13, fontWeight: 500,
+          color: done ? "var(--text-muted)" : "var(--text-primary)",
+          textDecoration: done ? "line-through" : "none",
+          lineHeight: 1.3,
+        }}>
+          {task.title}
+        </div>
+        {task.notes && !done && (
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {task.notes}
+          </div>
+        )}
+      </div>
+
+      {/* Tags */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        {task.priority === "high" && !done && (
+          <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 20, background: "rgba(239,68,68,0.12)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.25)" }}>
+            🔴 Срочно
+          </span>
+        )}
+        <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 20, background: `${catColor}15`, color: catColor, border: `1px solid ${catColor}25` }}>
+          {categoryLabel[task.category]}
+        </span>
+        {task.dueDate && (
+          <span style={{ fontSize: 11, color: getGroup(task.dueDate) === "overdue" ? "#EF4444" : "var(--text-muted)" }}>
+            {formatDate(task.dueDate)}
+          </span>
+        )}
+        {onDelete && hovered && (
+          <button
+            onClick={e => { e.stopPropagation(); onDelete() }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", padding: 2, lineHeight: 1, opacity: 0.6, transition: "opacity 0.15s" }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "0.6"}
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Detail Panel ──────────────────────────────────────────────────────────────
+
+function TaskDetailPanel({ task, done, onToggle, onClose }: {
+  task: Task
+  done: boolean
+  onToggle: () => void
+  onClose: () => void
+}) {
+  const [notes, setNotes] = useState("")
+  const catColor = categoryColor[task.category]
+
+  useEffect(() => {
+    setNotes(localStorage.getItem(`ailnex_notes_${task.id}`) || task.notes || "")
+  }, [task.id, task.notes])
+
+  const saveNotes = (val: string) => {
+    setNotes(val)
+    localStorage.setItem(`ailnex_notes_${task.id}`, val)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 900, background: "rgba(0,0,0,0.3)" }} />
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 901,
+        width: 360, background: "var(--bg-surface)", borderLeft: "1px solid var(--border)",
+        padding: "24px 24px 32px", overflowY: "auto",
+        boxShadow: "-12px 0 40px rgba(0,0,0,0.4)", animation: "slideIn 0.2s ease",
+      }}>
+        <button onClick={onClose} style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, fontSize: 18, lineHeight: 1 }}>✕</button>
+
+        {/* Category + status */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+          <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: `${catColor}15`, color: catColor, border: `1px solid ${catColor}25` }}>
+            {categoryLabel[task.category]}
+          </span>
+          {task.priority === "high" && (
+            <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: "rgba(239,68,68,0.12)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+              🔴 Срочно
+            </span>
+          )}
+        </div>
+
+        {/* Title */}
+        <div style={{ fontSize: 18, fontWeight: 700, color: done ? "var(--text-muted)" : "var(--text-primary)", lineHeight: 1.3, marginBottom: 16, textDecoration: done ? "line-through" : "none" }}>
+          {task.title}
+        </div>
+
+        {/* Date */}
+        {task.dueDate && (
+          <div style={{ fontSize: 12, color: getGroup(task.dueDate) === "overdue" ? "#EF4444" : "var(--text-muted)", marginBottom: 16 }}>
+            📅 {formatDate(task.dueDate)} · {groupMeta[getGroup(task.dueDate)].label}
+          </div>
+        )}
+
+        {/* Toggle done */}
+        <button
+          onClick={onToggle}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "8px 14px",
+            background: done ? "rgba(34,197,94,0.12)" : "var(--bg-elevated)",
+            border: `1px solid ${done ? "#22C55E" : "var(--border)"}`,
+            borderRadius: 8, cursor: "pointer", marginBottom: 20,
+            color: done ? "#22C55E" : "var(--text-secondary)",
+            fontSize: 13, fontWeight: 500, transition: "all 0.15s",
+          }}
+        >
+          <Check size={14} />
+          {done ? "Отметить как активную" : "Отметить выполненной"}
+        </button>
+
+        {/* Notes */}
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Заметки</div>
+        <textarea
+          value={notes}
+          onChange={e => saveNotes(e.target.value)}
+          placeholder="Пиши здесь..."
+          style={{ width: "100%", minHeight: 140, padding: "10px 12px", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--text-primary)", outline: "none", fontFamily: "inherit", resize: "vertical", lineHeight: 1.6, boxSizing: "border-box" }}
+          onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
+          onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}
+        />
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>Сохраняется автоматически</div>
+      </div>
+    </>
+  )
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────────
+
+type Filter = "all" | "active" | "done"
+
+export default function PlannerPage() {
+  const [customTasks, setCustomTasks] = useState<Task[]>([])
+  const [doneState, setDoneState] = useState<Record<string, boolean>>({})
+  const [filter, setFilter] = useState<Filter>("active")
+  const [catFilter, setCatFilter] = useState<TaskCategory | "all">("all")
+  const [showModal, setShowModal] = useState(false)
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setCustomTasks(loadCustom())
+    setDoneState(loadDone())
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return null
+
+  const allTasks = [...defaultTasks, ...customTasks]
+
+  const isDone = (id: string) => doneState[id] ?? false
+
+  const toggleDone = (id: string, title: string) => {
+    const next = !isDone(id)
+    const updated = { ...doneState, [id]: next }
+    setDoneState(updated)
+    saveDone(updated)
+    if (next) logHistory({ action: "moved", itemType: "order", itemTitle: title, from: "Активная", to: "Выполнено" })
+  }
+
+  const handleAdd = (t: Task) => {
+    const updated = [...customTasks, t]
+    setCustomTasks(updated)
+    saveCustom(updated)
+    logHistory({ action: "added", itemType: "order", itemTitle: t.title })
+  }
+
+  const handleDelete = (id: string) => {
+    const task = customTasks.find(t => t.id === id)
+    const updated = customTasks.filter(t => t.id !== id)
+    setCustomTasks(updated)
+    saveCustom(updated)
+    if (task) logHistory({ action: "deleted", itemType: "order", itemTitle: task.title })
+  }
+
+  // Apply filters
+  const filtered = allTasks.filter(t => {
+    if (filter === "active" && isDone(t.id)) return false
+    if (filter === "done" && !isDone(t.id)) return false
+    if (catFilter !== "all" && t.category !== catFilter) return false
+    return true
+  })
+
+  // Group
+  const grouped = GROUP_ORDER.reduce<Record<Group, Task[]>>((acc, g) => {
+    acc[g] = filtered.filter(t => getGroup(t.dueDate) === g)
+    return acc
+  }, { overdue: [], today: [], tomorrow: [], week: [], later: [], nodate: [] })
+
+  // Metrics (active only)
+  const activeTasks = allTasks.filter(t => !isDone(t.id))
+  const overdueCount = activeTasks.filter(t => getGroup(t.dueDate) === "overdue").length
+  const todayCount = activeTasks.filter(t => getGroup(t.dueDate) === "today").length
+
+  const filterBtn = (value: Filter, label: string) => (
+    <button
+      onClick={() => setFilter(value)}
+      style={{
+        padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+        border: "1px solid var(--border)", cursor: "pointer",
+        background: filter === value ? "var(--accent)" : "var(--bg-surface)",
+        color: filter === value ? "#fff" : "var(--text-secondary)",
+        transition: "all 0.15s",
+      }}
+    >{label}</button>
+  )
+
+  return (
+    <div style={{ animation: "fadeIn 0.2s ease" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.4px" }}>
+            Планировщик
+          </h1>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, marginBottom: 0 }}>
+            {activeTasks.length} активных · {allTasks.filter(t => isDone(t.id)).length} выполнено
+          </p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer", transition: "opacity 0.15s" }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.85"}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
+        >
+          <Plus size={14} /> Задача
+        </button>
+      </div>
+
+      {/* Metrics */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+        <MetricCard emoji="📋" value={activeTasks.length} label="Активных задач" color="var(--accent)" />
+        <MetricCard emoji="📅" value={todayCount} label="На сегодня" color="#6366F1" />
+        <MetricCard emoji="🔴" value={overdueCount} label="Просрочено" color={overdueCount > 0 ? "#EF4444" : "var(--text-muted)"} />
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {filterBtn("all", "Все")}
+          {filterBtn("active", "Активные")}
+          {filterBtn("done", "Выполненные")}
+        </div>
+        <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 4px" }} />
+        <div style={{ display: "flex", gap: 6 }}>
+          {([["all", "Все категории"], ["money", "💰"], ["work", "🛠"], ["call", "📞"], ["other", "📌"]] as [string, string][]).map(([val, lbl]) => (
+            <button key={val}
+              onClick={() => setCatFilter(val as TaskCategory | "all")}
+              style={{
+                padding: "6px 12px", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                border: "1px solid var(--border)",
+                background: catFilter === val ? "var(--bg-elevated)" : "transparent",
+                color: catFilter === val ? "var(--text-primary)" : "var(--text-muted)",
+                fontWeight: catFilter === val ? 600 : 400,
+                transition: "all 0.15s",
+              }}
+            >{lbl}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Groups */}
+      {filtered.length === 0 && (
+        <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+          {filter === "done" ? "Нет выполненных задач." : "Нет задач. Нажми + чтобы добавить."}
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        {GROUP_ORDER.map(group => {
+          const tasks = grouped[group]
+          if (tasks.length === 0) return null
+          const meta = groupMeta[group]
+          return (
+            <div key={group}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: meta.color }}>{meta.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", background: "var(--bg-elevated)", padding: "1px 6px", borderRadius: 10 }}>
+                  {tasks.length}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {tasks.map(task => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    done={isDone(task.id)}
+                    onToggle={() => toggleDone(task.id, task.title)}
+                    onDelete={task.id.startsWith("task-") ? () => handleDelete(task.id) : undefined}
+                    onClick={() => setDetailTask(task)}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {showModal && <AddTaskModal onAdd={handleAdd} onClose={() => setShowModal(false)} />}
+      {detailTask && (
+        <TaskDetailPanel
+          task={detailTask}
+          done={isDone(detailTask.id)}
+          onToggle={() => toggleDone(detailTask.id, detailTask.title)}
+          onClose={() => setDetailTask(null)}
+        />
+      )}
+    </div>
+  )
+}
