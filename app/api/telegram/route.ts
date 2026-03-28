@@ -12,20 +12,18 @@ function getDB() {
   )
 }
 
-async function transcribeVoice(fileId: string): Promise<string | null> {
+async function transcribeVoice(fileId: string): Promise<string> {
   const token = process.env.TELEGRAM_BOT_TOKEN
 
-  // Get file path from Telegram
   const fileInfoRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`)
   const fileInfo = await fileInfoRes.json() as { result?: { file_path?: string } }
   const filePath = fileInfo.result?.file_path
-  if (!filePath) return null
+  if (!filePath) throw new Error(`no file_path, response: ${JSON.stringify(fileInfo)}`)
 
-  // Download audio
   const audioRes = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`)
+  if (!audioRes.ok) throw new Error(`audio download failed: ${audioRes.status}`)
   const audioBuffer = await audioRes.arrayBuffer()
 
-  // Send to Whisper
   const formData = new FormData()
   formData.append('file', new Blob([audioBuffer], { type: 'audio/ogg' }), 'voice.ogg')
   formData.append('model', 'whisper-1')
@@ -37,8 +35,10 @@ async function transcribeVoice(fileId: string): Promise<string | null> {
     body: formData,
   })
 
-  const data = await whisperRes.json() as { text?: string }
-  return data.text || null
+  const data = await whisperRes.json() as { text?: string; error?: { message?: string } }
+  if (!whisperRes.ok) throw new Error(`Whisper error: ${data.error?.message || whisperRes.status}`)
+  if (!data.text) throw new Error(`no text in response: ${JSON.stringify(data)}`)
+  return data.text
 }
 
 async function tg(text: string) {
@@ -107,13 +107,14 @@ export async function POST(req: NextRequest) {
   if (message.text) {
     text = message.text
   } else if (message.voice) {
-    const transcribed = await transcribeVoice(message.voice.file_id)
-    if (!transcribed) {
-      await tg('Не смог распознать голосовое. Попробуй ещё раз.')
+    try {
+      const transcribed = await transcribeVoice(message.voice.file_id)
+      await tg(`🎤 Распознал: «${transcribed}»`)
+      text = transcribed
+    } catch (err) {
+      await tg(`❌ Голосовое: ${err instanceof Error ? err.message : String(err)}`)
       return NextResponse.json({ ok: true })
     }
-    await tg(`🎤 Распознал: «${transcribed}»`)
-    text = transcribed
   } else {
     return NextResponse.json({ ok: true })
   }
