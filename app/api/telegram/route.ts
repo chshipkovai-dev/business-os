@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     intentRaw = await ai.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 10,
-      system: 'Ответь одним словом: "question" если пользователь спрашивает о задачах/планах/делах/расписании, "task" если просит добавить/записать/создать задачу.',
+      system: 'Ответь одним словом: "question" если пользователь спрашивает о задачах/планах/делах/расписании, "done" если говорит что что-то выполнено/готово/сделано/завершено, "task" если просит добавить/записать/создать задачу.',
       messages: [{ role: 'user', content: text }],
     })
   } catch (err) {
@@ -121,6 +121,40 @@ export async function POST(req: NextRequest) {
     }
 
     await sendTelegramMessage(answer)
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Done flow ─────────────────────────────────────────────────────────────
+  if (intent.includes('done')) {
+    const db = getDB()
+    const { data } = await db.from('tasks').select('*').eq('done', false).order('created_at')
+    const openTasks = (data || []).map((r: Record<string, unknown>) => ({ id: r.id, title: r.title }))
+
+    if (openTasks.length === 0) {
+      await sendTelegramMessage('Нет открытых задач для отметки.')
+      return NextResponse.json({ ok: true })
+    }
+
+    let matchId: string | null = null
+    try {
+      const resp = await ai.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 50,
+        system: 'Найди задачу которую пользователь отмечает как выполненную. Верни только id задачи из списка или null если непонятно. Только id, без лишнего текста.',
+        messages: [{ role: 'user', content: `Сообщение: "${text}"\n\nЗадачи:\n${JSON.stringify(openTasks)}` }],
+      })
+      const raw = resp.content[0].type === 'text' ? resp.content[0].text.trim() : ''
+      matchId = raw === 'null' || raw === '' ? null : raw
+    } catch { /* ignore */ }
+
+    if (!matchId) {
+      // mark the most recent task as done
+      matchId = openTasks[0].id as string
+    }
+
+    const task = openTasks.find((t: { id: unknown; title: unknown }) => t.id === matchId)
+    await db.from('tasks').update({ done: true }).eq('id', matchId)
+    await sendTelegramMessage(`✅ Готово! Задача «${task?.title}» отмечена как выполненная.`)
     return NextResponse.json({ ok: true })
   }
 
