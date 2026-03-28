@@ -59,7 +59,8 @@ export async function POST(req: NextRequest) {
   let parsed: { title: string; category: string; priority: string; dueDate: string | null }
   try {
     const rawText = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-    parsed = JSON.parse(rawText)
+    const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    parsed = JSON.parse(cleaned)
     if (!parsed.title) throw new Error('no title')
   } catch {
     await sendTelegramMessage('❌ Не смог разобрать задачу. Попробуй: "Позвонить клиенту до пятницы" или "Отправить счёт завтра — срочно"')
