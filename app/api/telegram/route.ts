@@ -50,8 +50,9 @@ export async function POST(req: NextRequest) {
 Приоритет: high=срочно/важно/асап, low=не срочно, normal=всё остальное.`,
       messages: [{ role: 'user', content: text }],
     })
-  } catch {
-    await sendTelegramMessage('❌ Ошибка Claude API.')
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    await sendTelegramMessage(`❌ Ошибка Claude API: ${msg}`)
     return NextResponse.json({ ok: true })
   }
 
