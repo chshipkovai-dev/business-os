@@ -12,6 +12,35 @@ function getDB() {
   )
 }
 
+async function transcribeVoice(fileId: string): Promise<string | null> {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+
+  // Get file path from Telegram
+  const fileInfoRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`)
+  const fileInfo = await fileInfoRes.json() as { result?: { file_path?: string } }
+  const filePath = fileInfo.result?.file_path
+  if (!filePath) return null
+
+  // Download audio
+  const audioRes = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`)
+  const audioBuffer = await audioRes.arrayBuffer()
+
+  // Send to Whisper
+  const formData = new FormData()
+  formData.append('file', new Blob([audioBuffer], { type: 'audio/ogg' }), 'voice.ogg')
+  formData.append('model', 'whisper-1')
+  formData.append('language', 'ru')
+
+  const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: formData,
+  })
+
+  const data = await whisperRes.json() as { text?: string }
+  return data.text || null
+}
+
 async function tg(text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN
   const chatId = process.env.TELEGRAM_CHAT_ID
@@ -74,8 +103,20 @@ export async function POST(req: NextRequest) {
   const chatId = String(message.chat?.id)
   if (chatId !== process.env.TELEGRAM_CHAT_ID) return NextResponse.json({ ok: true })
 
-  const text: string = message.text
-  if (!text) return NextResponse.json({ ok: true })
+  let text: string
+  if (message.text) {
+    text = message.text
+  } else if (message.voice) {
+    const transcribed = await transcribeVoice(message.voice.file_id)
+    if (!transcribed) {
+      await tg('Не смог распознать голосовое. Попробуй ещё раз.')
+      return NextResponse.json({ ok: true })
+    }
+    await tg(`🎤 Распознал: «${transcribed}»`)
+    text = transcribed
+  } else {
+    return NextResponse.json({ ok: true })
+  }
 
   const today = new Date().toISOString().split('T')[0]
 
