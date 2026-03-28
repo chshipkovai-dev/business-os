@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Trash2, Check } from "lucide-react"
+import { Plus, Trash2, Check, Pencil } from "lucide-react"
 import {
   defaultTasks,
   categoryLabel,
@@ -16,14 +16,15 @@ import { logHistory } from "@/lib/history"
 
 const CUSTOM_KEY = "ailnex_custom_tasks"
 const DONE_KEY = "ailnex_task_done"
+const TASK_EDITS_KEY = "ailnex_task_edits"
 
 type TaskWithSource = Task & { source?: string; done?: boolean }
 
 const CATEGORIES: TaskCategory[] = ["money", "work", "call", "other"]
 const PRIORITIES: { value: TaskPriority; label: string }[] = [
-  { value: "high", label: "🔴 Высокий" },
-  { value: "normal", label: "🟡 Средний" },
-  { value: "low", label: "⚪ Низкий" },
+  { value: "high", label: "🔴 Срочно" },
+  { value: "normal", label: "🟡 Обычная" },
+  { value: "low", label: "⚪ Не срочно" },
 ]
 
 // ─── LocalStorage ─────────────────────────────────────────────────────────────
@@ -34,6 +35,15 @@ function loadCustom(): Task[] {
 }
 
 function saveCustom(t: Task[]) { localStorage.setItem(CUSTOM_KEY, JSON.stringify(t)) }
+
+function loadTaskEdits(): Record<string, Partial<Task>> {
+  if (typeof window === "undefined") return {}
+  try { return JSON.parse(localStorage.getItem(TASK_EDITS_KEY) || "{}") } catch { return {} }
+}
+
+function saveTaskEdits(e: Record<string, Partial<Task>>) {
+  localStorage.setItem(TASK_EDITS_KEY, JSON.stringify(e))
+}
 
 function loadDone(): Record<string, boolean> {
   if (typeof window === "undefined") return {}
@@ -77,18 +87,27 @@ function formatDate(iso: string) {
 
 // ─── Add Task Modal ────────────────────────────────────────────────────────────
 
-function AddTaskModal({ onAdd, onClose }: { onAdd: (t: Task) => void; onClose: () => void }) {
+function TaskFormModal({ initial, onSave, onClose }: {
+  initial?: Task
+  onSave: (t: Task) => void
+  onClose: () => void
+}) {
   const [form, setForm] = useState({
-    title: "", notes: "", category: "work" as TaskCategory,
-    priority: "normal" as TaskPriority, dueDate: "",
+    title: initial?.title ?? "",
+    notes: initial?.notes ?? "",
+    category: initial?.category ?? "work" as TaskCategory,
+    priority: initial?.priority ?? "normal" as TaskPriority,
+    dueDate: initial?.dueDate ?? "",
   })
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+  const fo = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"
+  const bl = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "var(--border)"
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.title.trim()) return
-    onAdd({
-      id: `task-${Date.now()}`,
+    onSave({
+      id: initial?.id ?? `task-${Date.now()}`,
       title: form.title.trim(),
       notes: form.notes.trim() || undefined,
       category: form.category,
@@ -99,39 +118,31 @@ function AddTaskModal({ onAdd, onClose }: { onAdd: (t: Task) => void; onClose: (
   }
 
   return (
-    <Modal title="Новая задача" onClose={onClose}>
+    <Modal title={initial ? "Редактировать задачу" : "Новая задача"} onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Название *</label>
           <input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)}
-            placeholder="Что нужно сделать?" autoFocus
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Что нужно сделать?" autoFocus onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Заметки</label>
           <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 64 }}
             value={form.notes} onChange={e => set("notes", e.target.value)}
-            placeholder="Детали..."
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Детали..." onFocus={fo} onBlur={bl} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <div>
             <label style={labelStyle}>Категория</label>
             <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.category}
-              onChange={e => set("category", e.target.value)}
-              onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-              onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}>
+              onChange={e => set("category", e.target.value)} onFocus={fo} onBlur={bl}>
               {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]}</option>)}
             </select>
           </div>
           <div>
             <label style={labelStyle}>Приоритет</label>
             <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.priority}
-              onChange={e => set("priority", e.target.value)}
-              onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-              onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}>
+              onChange={e => set("priority", e.target.value)} onFocus={fo} onBlur={bl}>
               {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
           </div>
@@ -139,11 +150,9 @@ function AddTaskModal({ onAdd, onClose }: { onAdd: (t: Task) => void; onClose: (
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Дата</label>
           <input type="date" style={{ ...fieldStyle, colorScheme: "dark" }} value={form.dueDate}
-            onChange={e => set("dueDate", e.target.value)}
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            onChange={e => set("dueDate", e.target.value)} onFocus={fo} onBlur={bl} />
         </div>
-        <SubmitButton label="Добавить задачу" />
+        <SubmitButton label={initial ? "Сохранить" : "Добавить задачу"} />
       </form>
     </Modal>
   )
@@ -151,11 +160,12 @@ function AddTaskModal({ onAdd, onClose }: { onAdd: (t: Task) => void; onClose: (
 
 // ─── Task Row ──────────────────────────────────────────────────────────────────
 
-function TaskRow({ task, done, onToggle, onDelete, onClick, isBot }: {
+function TaskRow({ task, done, onToggle, onDelete, onEdit, onClick, isBot }: {
   task: Task
   done: boolean
   onToggle: () => void
   onDelete?: () => void
+  onEdit?: () => void
   onClick: () => void
   isBot?: boolean
 }) {
@@ -230,6 +240,16 @@ function TaskRow({ task, done, onToggle, onDelete, onClick, isBot }: {
           <span style={{ fontSize: 11, color: getGroup(task.dueDate) === "overdue" ? "#EF4444" : "var(--text-muted)" }}>
             {formatDate(task.dueDate)}
           </span>
+        )}
+        {onEdit && hovered && (
+          <button
+            onClick={e => { e.stopPropagation(); onEdit() }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 2, lineHeight: 1, opacity: 0.6, transition: "opacity 0.15s" }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "0.6"}
+          >
+            <Pencil size={13} />
+          </button>
         )}
         {onDelete && hovered && (
           <button
@@ -346,18 +366,20 @@ type Filter = "all" | "active" | "done"
 export default function PlannerPage() {
   const [customTasks, setCustomTasks] = useState<Task[]>([])
   const [botTasks, setBotTasks] = useState<TaskWithSource[]>([])
+  const [taskEdits, setTaskEdits] = useState<Record<string, Partial<Task>>>({})
   const [doneState, setDoneState] = useState<Record<string, boolean>>({})
   const [filter, setFilter] = useState<Filter>("active")
   const [catFilter, setCatFilter] = useState<TaskCategory | "all">("all")
   const [showModal, setShowModal] = useState(false)
+  const [editTask, setEditTask] = useState<Task | null>(null)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setCustomTasks(loadCustom())
     setDoneState(loadDone())
+    setTaskEdits(loadTaskEdits())
     setMounted(true)
-    // Load bot tasks from Supabase
     fetch("/api/tasks")
       .then(r => r.json())
       .then(data => Array.isArray(data) ? setBotTasks(data) : [])
@@ -367,7 +389,11 @@ export default function PlannerPage() {
   if (!mounted) return null
 
   const botTaskIds = new Set(botTasks.map(t => t.id))
-  const allTasks: TaskWithSource[] = [...defaultTasks, ...botTasks.filter(t => !t.done), ...customTasks]
+  const allTasks: TaskWithSource[] = [
+    ...defaultTasks.map(t => ({ ...t, ...taskEdits[t.id] })),
+    ...botTasks.filter(t => !t.done).map(t => ({ ...t, ...taskEdits[t.id] })),
+    ...customTasks.map(t => ({ ...t, ...taskEdits[t.id] })),
+  ]
 
   const isDone = (id: string) => doneState[id] ?? false
 
@@ -384,6 +410,20 @@ export default function PlannerPage() {
     setCustomTasks(updated)
     saveCustom(updated)
     logHistory({ action: "added", itemType: "order", itemTitle: t.title })
+  }
+
+  const handleEditSave = (t: Task) => {
+    const isCustom = t.id.startsWith("task-")
+    if (isCustom) {
+      const updated = customTasks.map(c => c.id === t.id ? t : c)
+      setCustomTasks(updated)
+      saveCustom(updated)
+    } else {
+      const updated = { ...taskEdits, [t.id]: t }
+      setTaskEdits(updated)
+      saveTaskEdits(updated)
+    }
+    if (detailTask?.id === t.id) setDetailTask(t)
   }
 
   const handleDelete = (id: string) => {
@@ -512,6 +552,7 @@ export default function PlannerPage() {
                     task={task}
                     done={isDone(task.id)}
                     onToggle={() => toggleDone(task.id, task.title)}
+                    onEdit={() => setEditTask(task)}
                     onDelete={(task.id.startsWith("task-") || botTaskIds.has(task.id)) ? () => handleDelete(task.id) : undefined}
                     onClick={() => setDetailTask(task)}
                     isBot={botTaskIds.has(task.id)}
@@ -523,7 +564,8 @@ export default function PlannerPage() {
         })}
       </div>
 
-      {showModal && <AddTaskModal onAdd={handleAdd} onClose={() => setShowModal(false)} />}
+      {showModal && <TaskFormModal onSave={handleAdd} onClose={() => setShowModal(false)} />}
+      {editTask && <TaskFormModal initial={editTask} onSave={t => { handleEditSave(t); setEditTask(null) }} onClose={() => setEditTask(null)} />}
       {detailTask && (
         <TaskDetailPanel
           task={detailTask}

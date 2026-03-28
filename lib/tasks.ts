@@ -38,14 +38,14 @@ export const defaultTasks: Task[] = [
     title: "Сайт — проверить языковую мутацию в этих разделах",
     dueDate: "2026-03-29",
     category: "work",
-    priority: "normal",
+    priority: "high",
   },
   {
     id: "default-5",
     title: "Сайт — протестировать весь сайт",
     dueDate: "2026-03-29",
     category: "work",
-    priority: "normal",
+    priority: "high",
   },
   {
     id: "default-6",

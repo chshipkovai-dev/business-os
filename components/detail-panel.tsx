@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { X, ExternalLink, ArrowRight } from "lucide-react"
+import { X, ExternalLink, ArrowRight, Pencil } from "lucide-react"
 import { type CompanyProject, stageLabel, stageColor, stageEmoji } from "@/lib/company-projects"
 import { type Order, statusLabel, statusColor, statusEmoji } from "@/lib/orders"
 
@@ -17,9 +17,10 @@ function saveNote(id: string, text: string) {
 
 // ─── Project Panel ─────────────────────────────────────────────────────────────
 
-export function ProjectDetailPanel({ project, onClose }: {
+export function ProjectDetailPanel({ project, onClose, onEdit }: {
   project: CompanyProject
   onClose: () => void
+  onEdit?: () => void
 }) {
   const [notes, setNotes] = useState("")
   const color = stageColor[project.stage]
@@ -34,7 +35,7 @@ export function ProjectDetailPanel({ project, onClose }: {
   }, [project.id])
 
   return (
-    <PanelShell onClose={onClose}>
+    <PanelShell onClose={onClose} onEdit={onEdit}>
       {/* Stage badge */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
         <span style={{ fontSize: 14 }}>{stageEmoji[project.stage]}</span>
@@ -89,9 +90,10 @@ export function ProjectDetailPanel({ project, onClose }: {
 
 // ─── Order Panel ───────────────────────────────────────────────────────────────
 
-export function OrderDetailPanel({ order, onClose }: {
+export function OrderDetailPanel({ order, onClose, onEdit }: {
   order: Order
   onClose: () => void
+  onEdit?: () => void
 }) {
   const [notes, setNotes] = useState("")
   const color = statusColor[order.status]
@@ -106,7 +108,7 @@ export function OrderDetailPanel({ order, onClose }: {
   }, [order.id])
 
   return (
-    <PanelShell onClose={onClose}>
+    <PanelShell onClose={onClose} onEdit={onEdit}>
       {/* Status badge */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
         <span style={{ fontSize: 14 }}>{statusEmoji[order.status]}</span>
@@ -222,7 +224,7 @@ function NotesField({ value, onChange }: { value: string; onChange: (v: string) 
 
 // ─── Panel Shell ───────────────────────────────────────────────────────────────
 
-function PanelShell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function PanelShell({ children, onClose, onEdit }: { children: React.ReactNode; onClose: () => void; onEdit?: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
     document.addEventListener("keydown", onKey)
@@ -247,14 +249,27 @@ function PanelShell({ children, onClose }: { children: React.ReactNode; onClose:
         boxShadow: "-12px 0 40px rgba(0,0,0,0.4)",
         animation: "slideIn 0.2s ease",
       }}>
-        <button
-          onClick={onClose}
-          style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, lineHeight: 1 }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"}
-        >
-          <X size={18} />
-        </button>
+        <div style={{ position: "absolute", top: 16, right: 16, display: "flex", alignItems: "center", gap: 4 }}>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              title="Редактировать"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, lineHeight: 1 }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"}
+            >
+              <Pencil size={15} />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, lineHeight: 1 }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"}
+          >
+            <X size={18} />
+          </button>
+        </div>
         {children}
       </div>
     </>

@@ -20,6 +20,7 @@ import { logHistory } from "@/lib/history"
 
 const ORDERS_KEY = "ailnex_order_statuses"
 const CUSTOM_ORDERS_KEY = "ailnex_custom_orders"
+const ORDER_EDITS_KEY = "ailnex_order_edits"
 const COLUMNS: OrderStatus[] = ["new", "discussion", "in_progress", "done", "invoiced"]
 const SOURCES = ["Upwork", "Referral", "Ailnex", "Direct", "Другое"]
 
@@ -43,25 +44,43 @@ function saveCustomOrders(o: Order[]) {
   localStorage.setItem(CUSTOM_ORDERS_KEY, JSON.stringify(o))
 }
 
-// ─── Add Order Modal ──────────────────────────────────────────────────────────
+function loadOrderEdits(): Record<string, Partial<Order>> {
+  if (typeof window === "undefined") return {}
+  try { return JSON.parse(localStorage.getItem(ORDER_EDITS_KEY) || "{}") } catch { return {} }
+}
 
-function AddOrderModal({ onAdd, onClose }: {
-  onAdd: (o: Order) => void
+function saveOrderEdits(e: Record<string, Partial<Order>>) {
+  localStorage.setItem(ORDER_EDITS_KEY, JSON.stringify(e))
+}
+
+// ─── Order Form Modal (add + edit) ───────────────────────────────────────────
+
+function OrderFormModal({ initial, onSave, onClose }: {
+  initial?: Order
+  onSave: (o: Order) => void
   onClose: () => void
 }) {
   const [form, setForm] = useState({
-    client: "", title: "", description: "",
-    status: "new" as OrderStatus,
-    source: "", budget: "", deadline: "", notes: "", projectId: "",
+    client: initial?.client ?? "",
+    title: initial?.title ?? "",
+    description: initial?.description ?? "",
+    status: initial?.status ?? "new" as OrderStatus,
+    source: initial?.source ?? "",
+    budget: initial?.budget ?? "",
+    deadline: initial?.deadline ?? "",
+    notes: initial?.notes ?? "",
+    projectId: initial?.projectId ?? "",
   })
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+  const fo = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"
+  const bl = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "var(--border)"
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.title.trim()) return
-    onAdd({
-      id: `custom-${Date.now()}`,
+    onSave({
+      id: initial?.id ?? `custom-${Date.now()}`,
       client: form.client.trim() || "—",
       title: form.title.trim(),
       description: form.description.trim(),
@@ -76,46 +95,36 @@ function AddOrderModal({ onAdd, onClose }: {
   }
 
   return (
-    <Modal title="Новый заказ" onClose={onClose}>
+    <Modal title={initial ? "Редактировать заказ" : "Новый заказ"} onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Название *</label>
           <input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)}
-            placeholder="Название заказа" autoFocus
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Название заказа" autoFocus onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Клиент</label>
           <input style={fieldStyle} value={form.client} onChange={e => set("client", e.target.value)}
-            placeholder="Имя клиента или компании"
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Имя клиента или компании" onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Описание</label>
           <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 72 }}
             value={form.description} onChange={e => set("description", e.target.value)}
-            placeholder="Что нужно сделать?"
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Что нужно сделать?" onFocus={fo} onBlur={bl} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <div>
             <label style={labelStyle}>Статус</label>
             <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.status}
-              onChange={e => set("status", e.target.value)}
-              onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-              onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}>
+              onChange={e => set("status", e.target.value)} onFocus={fo} onBlur={bl}>
               {COLUMNS.map(s => <option key={s} value={s}>{statusEmoji[s]} {statusLabel[s]}</option>)}
             </select>
           </div>
           <div>
             <label style={labelStyle}>Источник</label>
             <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.source}
-              onChange={e => set("source", e.target.value)}
-              onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-              onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}>
+              onChange={e => set("source", e.target.value)} onFocus={fo} onBlur={bl}>
               <option value="">— не указан</option>
               {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -125,24 +134,18 @@ function AddOrderModal({ onAdd, onClose }: {
           <div>
             <label style={labelStyle}>Бюджет</label>
             <input style={fieldStyle} value={form.budget} onChange={e => set("budget", e.target.value)}
-              placeholder="50k CZK, $500, ..."
-              onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-              onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+              placeholder="50k CZK, $500, ..." onFocus={fo} onBlur={bl} />
           </div>
           <div>
             <label style={labelStyle}>Дедлайн</label>
             <input type="date" style={{ ...fieldStyle, colorScheme: "dark" }} value={form.deadline}
-              onChange={e => set("deadline", e.target.value)}
-              onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-              onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+              onChange={e => set("deadline", e.target.value)} onFocus={fo} onBlur={bl} />
           </div>
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Связать с проектом</label>
           <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.projectId}
-            onChange={e => set("projectId", e.target.value)}
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}>
+            onChange={e => set("projectId", e.target.value)} onFocus={fo} onBlur={bl}>
             <option value="">— не связан</option>
             {companyProjects.filter(p => !p.archived).map(p => (
               <option key={p.id} value={p.id}>{p.title}</option>
@@ -153,11 +156,9 @@ function AddOrderModal({ onAdd, onClose }: {
           <label style={labelStyle}>Заметки</label>
           <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 60 }}
             value={form.notes} onChange={e => set("notes", e.target.value)}
-            placeholder="Важные детали, следующие шаги..."
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Важные детали, следующие шаги..." onFocus={fo} onBlur={bl} />
         </div>
-        <SubmitButton label="Добавить заказ" />
+        <SubmitButton label={initial ? "Сохранить" : "Добавить заказ"} />
       </form>
     </Modal>
   )
@@ -349,14 +350,17 @@ function DroppableColumn({ status, orders, activeId, onDelete, onOpen }: {
 export default function OrdersPage() {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, OrderStatus>>({})
   const [customOrders, setCustomOrders] = useState<Order[]>([])
+  const [orderEdits, setOrderEdits] = useState<Record<string, Partial<Order>>>({})
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [editOrder, setEditOrder] = useState<Order | null>(null)
   const [detailOrder, setDetailOrder] = useState<Order | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setStatusOverrides(loadStatuses())
     setCustomOrders(loadCustomOrders())
+    setOrderEdits(loadOrderEdits())
     setMounted(true)
   }, [])
 
@@ -364,6 +368,7 @@ export default function OrdersPage() {
 
   const allOrders = [...initialOrders, ...customOrders].map(o => ({
     ...o,
+    ...orderEdits[o.id],
     status: (statusOverrides[o.id] ?? o.status) as OrderStatus,
   }))
 
@@ -391,6 +396,20 @@ export default function OrdersPage() {
     setCustomOrders(updated)
     saveCustomOrders(updated)
     logHistory({ action: "added", itemType: "order", itemTitle: o.title, to: statusLabel[o.status] })
+  }
+
+  function handleEdit(o: Order) {
+    const isCustom = o.id.startsWith("custom-")
+    if (isCustom) {
+      const updated = customOrders.map(c => c.id === o.id ? o : c)
+      setCustomOrders(updated)
+      saveCustomOrders(updated)
+    } else {
+      const updated = { ...orderEdits, [o.id]: o }
+      setOrderEdits(updated)
+      saveOrderEdits(updated)
+    }
+    setDetailOrder(o)
   }
 
   function handleDelete(id: string) {
@@ -456,8 +475,9 @@ export default function OrdersPage() {
         </DragOverlay>
       </DndContext>
 
-      {showModal && <AddOrderModal onAdd={handleAdd} onClose={() => setShowModal(false)} />}
-      {detailOrder && <OrderDetailPanel order={detailOrder} onClose={() => setDetailOrder(null)} />}
+      {showModal && <OrderFormModal onSave={handleAdd} onClose={() => setShowModal(false)} />}
+      {editOrder && <OrderFormModal initial={editOrder} onSave={o => { handleEdit(o); setEditOrder(null) }} onClose={() => setEditOrder(null)} />}
+      {detailOrder && <OrderDetailPanel order={detailOrder} onClose={() => setDetailOrder(null)} onEdit={() => { setEditOrder(detailOrder); setDetailOrder(null) }} />}
     </div>
   )
 }

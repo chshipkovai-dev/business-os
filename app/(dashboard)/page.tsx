@@ -19,6 +19,7 @@ import { logHistory } from "@/lib/history"
 
 const STAGES_KEY = "ailnex_project_stages"
 const CUSTOM_KEY = "ailnex_custom_projects"
+const EDITS_KEY = "ailnex_project_edits"
 const COLUMNS: CompanyProjectStage[] = ["idea", "building", "launched"]
 
 // ─── LocalStorage helpers ─────────────────────────────────────────────────────
@@ -41,15 +42,29 @@ function saveCustomProjects(p: CompanyProject[]) {
   localStorage.setItem(CUSTOM_KEY, JSON.stringify(p))
 }
 
-// ─── Add Project Modal ────────────────────────────────────────────────────────
+function loadProjectEdits(): Record<string, Partial<CompanyProject>> {
+  if (typeof window === "undefined") return {}
+  try { return JSON.parse(localStorage.getItem(EDITS_KEY) || "{}") } catch { return {} }
+}
 
-function AddProjectModal({ onAdd, onClose }: {
-  onAdd: (p: CompanyProject) => void
+function saveProjectEdits(e: Record<string, Partial<CompanyProject>>) {
+  localStorage.setItem(EDITS_KEY, JSON.stringify(e))
+}
+
+// ─── Project Form Modal (add + edit) ──────────────────────────────────────────
+
+function ProjectFormModal({ initial, onSave, onClose }: {
+  initial?: CompanyProject
+  onSave: (p: CompanyProject) => void
   onClose: () => void
 }) {
   const [form, setForm] = useState({
-    title: "", description: "", stage: "idea" as CompanyProjectStage,
-    url: "", tags: "", nextStep: "",
+    title: initial?.title ?? "",
+    description: initial?.description ?? "",
+    stage: initial?.stage ?? "idea" as CompanyProjectStage,
+    url: initial?.url ?? "",
+    tags: initial?.tags.join(", ") ?? "",
+    nextStep: initial?.nextStep ?? "",
   })
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -57,8 +72,8 @@ function AddProjectModal({ onAdd, onClose }: {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.title.trim()) return
-    onAdd({
-      id: `custom-${Date.now()}`,
+    onSave({
+      id: initial?.id ?? `custom-${Date.now()}`,
       title: form.title.trim(),
       description: form.description.trim(),
       stage: form.stage,
@@ -69,55 +84,46 @@ function AddProjectModal({ onAdd, onClose }: {
     onClose()
   }
 
+  const fo = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"
+  const bl = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "var(--border)"
+
   return (
-    <Modal title="Новый проект" onClose={onClose}>
+    <Modal title={initial ? "Редактировать проект" : "Новый проект"} onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Название *</label>
           <input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)}
-            placeholder="Название проекта" autoFocus
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Название проекта" autoFocus onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Описание</label>
           <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 72 }}
             value={form.description} onChange={e => set("description", e.target.value)}
-            placeholder="Что за проект?"
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Что за проект?" onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Статус</label>
-          <select style={{ ...fieldStyle, cursor: "pointer" }}
-            value={form.stage} onChange={e => set("stage", e.target.value)}
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}>
+          <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.stage}
+            onChange={e => set("stage", e.target.value)} onFocus={fo} onBlur={bl}>
             {COLUMNS.map(s => <option key={s} value={s}>{stageEmoji[s]} {stageLabel[s]}</option>)}
           </select>
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>URL (опционально)</label>
           <input style={fieldStyle} value={form.url} onChange={e => set("url", e.target.value)}
-            placeholder="https://..."
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="https://..." onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Теги (через запятую)</label>
           <input style={fieldStyle} value={form.tags} onChange={e => set("tags", e.target.value)}
-            placeholder="SaaS, AI, B2B"
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="SaaS, AI, B2B" onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Следующий шаг</label>
           <input style={fieldStyle} value={form.nextStep} onChange={e => set("nextStep", e.target.value)}
-            placeholder="Что нужно сделать дальше?"
-            onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
-            onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"} />
+            placeholder="Что нужно сделать дальше?" onFocus={fo} onBlur={bl} />
         </div>
-        <SubmitButton label="Добавить проект" />
+        <SubmitButton label={initial ? "Сохранить" : "Добавить проект"} />
       </form>
     </Modal>
   )
@@ -293,14 +299,17 @@ function DroppableColumn({ stage, projects, activeId, onDelete, onOpen }: {
 export default function CompanyBoard() {
   const [stageOverrides, setStageOverrides] = useState<Record<string, CompanyProjectStage>>({})
   const [customProjects, setCustomProjects] = useState<CompanyProject[]>([])
+  const [projectEdits, setProjectEdits] = useState<Record<string, Partial<CompanyProject>>>({})
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [editProject, setEditProject] = useState<CompanyProject | null>(null)
   const [detailProject, setDetailProject] = useState<CompanyProject | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setStageOverrides(loadStages())
     setCustomProjects(loadCustomProjects())
+    setProjectEdits(loadProjectEdits())
     setMounted(true)
   }, [])
 
@@ -309,7 +318,7 @@ export default function CompanyBoard() {
   const allProjects = [
     ...companyProjects.filter(p => !p.archived),
     ...customProjects,
-  ].map(p => ({ ...p, stage: (stageOverrides[p.id] ?? p.stage) as CompanyProjectStage }))
+  ].map(p => ({ ...p, ...projectEdits[p.id], stage: (stageOverrides[p.id] ?? p.stage) as CompanyProjectStage }))
 
   const activeProject = allProjects.find(p => p.id === activeId) ?? null
 
@@ -347,6 +356,20 @@ export default function CompanyBoard() {
     setStageOverrides(overrides)
     saveStages(overrides)
     if (proj) logHistory({ action: "deleted", itemType: "project", itemTitle: proj.title })
+  }
+
+  function handleEdit(p: CompanyProject) {
+    const isCustom = p.id.startsWith("custom-")
+    if (isCustom) {
+      const updated = customProjects.map(c => c.id === p.id ? p : c)
+      setCustomProjects(updated)
+      saveCustomProjects(updated)
+    } else {
+      const updated = { ...projectEdits, [p.id]: p }
+      setProjectEdits(updated)
+      saveProjectEdits(updated)
+    }
+    setDetailProject(p)
   }
 
   if (!mounted) return null
@@ -400,8 +423,9 @@ export default function CompanyBoard() {
         </DragOverlay>
       </DndContext>
 
-      {showModal && <AddProjectModal onAdd={handleAdd} onClose={() => setShowModal(false)} />}
-      {detailProject && <ProjectDetailPanel project={detailProject} onClose={() => setDetailProject(null)} />}
+      {showModal && <ProjectFormModal onSave={handleAdd} onClose={() => setShowModal(false)} />}
+      {editProject && <ProjectFormModal initial={editProject} onSave={p => { handleEdit(p); setEditProject(null) }} onClose={() => setEditProject(null)} />}
+      {detailProject && <ProjectDetailPanel project={detailProject} onClose={() => setDetailProject(null)} onEdit={() => { setEditProject(detailProject); setDetailProject(null) }} />}
     </div>
   )
 }
