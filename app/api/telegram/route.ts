@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
+import { defaultTasks, categoryLabel } from '@/lib/tasks'
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -17,8 +18,22 @@ async function sendTelegramMessage(text: string) {
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
   })
+}
+
+function getGroup(dueDate?: string | null): string {
+  if (!dueDate) return 'nodate'
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(dueDate)
+  due.setHours(0, 0, 0, 0)
+  const diff = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (diff < 0) return 'overdue'
+  if (diff === 0) return 'today'
+  if (diff === 1) return 'tomorrow'
+  if (diff <= 7) return 'week'
+  return 'later'
 }
 
 export async function POST(req: NextRequest) {
@@ -37,6 +52,79 @@ export async function POST(req: NextRequest) {
 
   const today = new Date().toISOString().split('T')[0]
 
+  // ── Step 1: detect intent ──────────────────────────────────────────────────
+  let intentRaw
+  try {
+    intentRaw = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 10,
+      system: 'Ответь одним словом: "question" если пользователь спрашивает о задачах/планах/делах/расписании, "task" если просит добавить/записать/создать задачу.',
+      messages: [{ role: 'user', content: text }],
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    await sendTelegramMessage(`❌ Ошибка Claude API: ${msg}`)
+    return NextResponse.json({ ok: true })
+  }
+
+  const intent = intentRaw.content[0].type === 'text'
+    ? intentRaw.content[0].text.trim().toLowerCase()
+    : 'task'
+
+  // ── Question flow ──────────────────────────────────────────────────────────
+  if (intent.includes('question')) {
+    const db = getDB()
+    const { data } = await db.from('tasks').select('*').eq('done', false).order('created_at')
+
+    // Merge default + bot tasks
+    const botTasks = (data || []).map((r: Record<string, unknown>) => ({
+      title: r.title as string,
+      category: r.category as string,
+      priority: r.priority as string,
+      dueDate: r.due_date as string | null,
+      group: getGroup(r.due_date as string | null),
+    }))
+
+    const allForPrompt = [
+      ...defaultTasks.map(t => ({
+        title: t.title,
+        category: categoryLabel[t.category],
+        priority: t.priority,
+        dueDate: t.dueDate || null,
+        group: getGroup(t.dueDate),
+      })),
+      ...botTasks.map(t => ({
+        title: t.title,
+        category: t.category,
+        priority: t.priority,
+        dueDate: t.dueDate,
+        group: t.group,
+      })),
+    ]
+
+    let answer
+    try {
+      const resp = await ai.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system: `Ты личный ассистент Denis. Отвечай кратко, по-русски, без лишних слов. Сегодня: ${today}.
+Группы задач: overdue=просрочено, today=сегодня, tomorrow=завтра, week=на неделе, later=позже, nodate=без даты.
+Форматируй списком с эмодзи категорий: 💰=деньги, 🛠=работа, 📞=звонки, 📌=другое.`,
+        messages: [{
+          role: 'user',
+          content: `Вопрос: "${text}"\n\nЗадачи:\n${JSON.stringify(allForPrompt, null, 2)}`,
+        }],
+      })
+      answer = resp.content[0].type === 'text' ? resp.content[0].text : 'Не смог ответить.'
+    } catch {
+      answer = 'Не смог получить задачи.'
+    }
+
+    await sendTelegramMessage(answer)
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Task flow ──────────────────────────────────────────────────────────────
   let response
   try {
     response = await ai.messages.create({
