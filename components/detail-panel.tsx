@@ -244,7 +244,7 @@ function PanelShell({ children, onClose, onEdit }: { children: React.ReactNode; 
         width: 360,
         background: "var(--bg-surface)",
         borderLeft: "1px solid var(--border)",
-        padding: "24px 24px 32px",
+        padding: "56px 24px 32px",
         overflowY: "auto",
         boxShadow: "-12px 0 40px rgba(0,0,0,0.4)",
         animation: "slideIn 0.2s ease",
