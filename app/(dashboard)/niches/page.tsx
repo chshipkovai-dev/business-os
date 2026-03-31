@@ -99,9 +99,9 @@ const niches = [
     tag: "ЕСТЬ TEREZA",
     dealSize: "15k–40k CZK + 2k–4k/мес",
     speed: "3–4 недели",
-    roi: "Tereza уже адаптируема",
+    roi: "AI Reception уже адаптируем",
     automates: ["Онлайн-запись", "Напоминания пациентам", "Patient follow-up", "Документация"],
-    why: "У Ailnex уже есть Tereza — бот для записи. Можно адаптировать. GDPR чувствительность.",
+    why: "У Ailnex уже есть AI Reception — Telegram бот для записи. Можно адаптировать. GDPR чувствительность.",
     market: "Тысячи частных клиник по ЧР",
     competition: "Нет AI-специализированных решений",
     status: "later",
@@ -189,7 +189,7 @@ export default function NichesPage() {
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Первые деньги — сейчас</div>
-            {["Beauty салоны → Tereza уже готова", "Рекрутинговые агентства → острая боль", "Маркетинговые агентства → мета-мультипликатор"].map((item, i) => (
+            {["Beauty салоны → AI Reception уже готов", "Рекрутинговые агентства → острая боль", "Маркетинговые агентства → мета-мультипликатор"].map((item, i) => (
               <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 12, color: "#22C55E", fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span>
                 <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{item}</span>
