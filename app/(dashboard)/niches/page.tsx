@@ -208,9 +208,10 @@ export default function NichesPage() {
           <div style={{ padding: "8px 14px", background: "rgba(99,102,241,0.08)", borderRadius: 8, border: "1px solid rgba(99,102,241,0.2)", alignSelf: "flex-start" }}>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Преимущество Ailnex</div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-              ✅ Публичные цены<br />
-              ✅ Живое демо<br />
-              ✅ CZ / EN / RU
+              ✅ Фиксированная цена<br />
+              ✅ 3 языка: CZ / EN / RU<br />
+              ✅ Voice AI + Claude API<br />
+              ✅ Клиент владеет кодом
             </div>
           </div>
         </div>
