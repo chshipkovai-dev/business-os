@@ -40,7 +40,7 @@ export const companyProjects: CompanyProject[] = [
   },
   {
     id: "tereza",
-    title: "Tereza — AI Recepční",
+    title: "AI Reception — Telegram бот записи",
     description: "AI-ресепшн для чешских beauty-салонов. Принимает звонки, записывает клиентов. Лендинг live.",
     stage: "launched",
     url: "https://reception-ai.cz",
