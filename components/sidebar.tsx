@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGrid, ShoppingBag, Lightbulb, Archive, ChevronDown, ChevronRight, FolderOpen, TrendingUp, Sun, Moon, Clock, CheckSquare } from "lucide-react"
+import { LayoutGrid, ShoppingBag, Lightbulb, Archive, ChevronDown, ChevronRight, FolderOpen, TrendingUp, Sun, Moon, Clock, CheckSquare, Target } from "lucide-react"
 import { useState, useEffect, Suspense } from "react"
 
 const THEME_KEY = "ailnex_theme"
@@ -11,6 +11,7 @@ const globalNav = [
   { href: "/", label: "Доска проектов", icon: LayoutGrid },
   { href: "/orders", label: "Заказы", icon: ShoppingBag },
   { href: "/planner", label: "Планировщик", icon: CheckSquare },
+  { href: "/niches", label: "Ниши", icon: Target },
 ]
 
 const archiveLinks = [
