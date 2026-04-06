@@ -4,23 +4,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LayoutGrid, ShoppingBag, Lightbulb, Archive, ChevronDown, ChevronRight, FolderOpen, TrendingUp, Sun, Moon, Clock, CheckSquare, Target } from "lucide-react"
 import { useState, useEffect, Suspense } from "react"
+import { useLang } from "@/lib/lang"
+import { t } from "@/lib/translations"
 
 const THEME_KEY = "ailnex_theme"
-
-const globalNav = [
-  { href: "/", label: "Доска проектов", icon: LayoutGrid },
-  { href: "/orders", label: "Заказы", icon: ShoppingBag },
-  { href: "/planner", label: "Планировщик", icon: CheckSquare },
-  { href: "/niches", label: "Ниши", icon: Target },
-]
-
-const archiveLinks = [
-  { href: "/archived-projects", label: "Архив проектов", icon: Archive },
-  { href: "/history", label: "История", icon: Clock },
-  { href: "/ideas", label: "Идеи скаута", icon: Lightbulb },
-  { href: "/all-projects", label: "Все идеи", icon: FolderOpen },
-  { href: "/trends", label: "Тренды", icon: TrendingUp },
-]
 
 function NavLink({ href, label, icon: Icon, active }: { href: string; label: string; icon: React.ElementType; active: boolean }) {
   return (
@@ -44,6 +31,24 @@ function SidebarInner() {
   const pathname = usePathname()
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [theme, setTheme] = useState<"dark" | "light">("dark")
+  const { lang, setLang } = useLang()
+
+  const s = t.sidebar
+
+  const globalNav = [
+    { href: "/", label: s.board[lang], icon: LayoutGrid },
+    { href: "/orders", label: s.orders[lang], icon: ShoppingBag },
+    { href: "/planner", label: s.planner[lang], icon: CheckSquare },
+    { href: "/niches", label: s.niches[lang], icon: Target },
+  ]
+
+  const archiveLinks = [
+    { href: "/archived-projects", label: s.archivedProjects[lang], icon: Archive },
+    { href: "/history", label: s.history[lang], icon: Clock },
+    { href: "/ideas", label: s.scoutIdeas[lang], icon: Lightbulb },
+    { href: "/all-projects", label: s.allIdeas[lang], icon: FolderOpen },
+    { href: "/trends", label: s.trends[lang], icon: TrendingUp },
+  ]
 
   useEffect(() => {
     const saved = (localStorage.getItem(THEME_KEY) || "dark") as "dark" | "light"
@@ -70,51 +75,38 @@ function SidebarInner() {
       {/* Brand */}
       <div style={{ padding: "4px 10px 20px" }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.3px" }}>
-          Ailnex OS
+          {s.brand[lang]}
         </div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-          Доска компании
+          {s.subtitle[lang]}
         </div>
       </div>
 
       <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-        {/* Global nav */}
         {globalNav.map(({ href, label, icon }) => (
-          <NavLink
-            key={href}
-            href={href}
-            label={label}
-            icon={icon}
-            active={pathname === href}
-          />
+          <NavLink key={href} href={href} label={label} icon={icon} active={pathname === href} />
         ))}
 
         {/* Archive section */}
         <div style={{ marginTop: 12 }}>
           <div style={{ height: 1, background: "var(--border)", marginBottom: 10 }} />
 
-          {/* Toggle button */}
           <button
             onClick={() => setArchiveOpen(o => !o)}
             style={{
               display: "flex", alignItems: "center", gap: 9,
               width: "100%", padding: "7px 10px", borderRadius: 7,
               background: "transparent", border: "none", cursor: "pointer",
-              fontSize: 13, color: "var(--text-muted)",
-              transition: "all 0.15s",
+              fontSize: 13, color: "var(--text-muted)", transition: "all 0.15s",
             }}
             onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = "var(--bg-elevated)"; el.style.color = "var(--text-secondary)" }}
             onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = "transparent"; el.style.color = "var(--text-muted)" }}
           >
             <Archive size={14} />
-            <span style={{ flex: 1, textAlign: "left" }}>Архив</span>
-            {archiveOpen
-              ? <ChevronDown size={12} />
-              : <ChevronRight size={12} />
-            }
+            <span style={{ flex: 1, textAlign: "left" }}>{s.archive[lang]}</span>
+            {archiveOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </button>
 
-          {/* Archive links */}
           {archiveOpen && (
             <div style={{ paddingLeft: 8, marginTop: 2, display: "flex", flexDirection: "column", gap: 1 }}>
               {archiveLinks.map(({ href, label, icon: Icon }) => {
@@ -142,17 +134,37 @@ function SidebarInner() {
       </nav>
 
       {/* Bottom */}
-      <div style={{ paddingTop: 8, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px 0" }}>
+      <div style={{ paddingTop: 8, borderTop: "1px solid var(--border)", padding: "8px 10px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 11, color: "var(--text-muted)" }}>v0.2</span>
-        <button
-          onClick={toggleTheme}
-          title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, lineHeight: 1, transition: "color 0.15s" }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"}
-        >
-          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {/* Language toggle */}
+          <button
+            onClick={() => setLang(lang === "ru" ? "en" : "ru")}
+            title={lang === "ru" ? "Switch to English" : "Переключить на русский"}
+            style={{
+              background: "var(--bg-elevated)", border: "1px solid var(--border)",
+              borderRadius: 6, padding: "3px 7px", cursor: "pointer",
+              fontSize: 11, fontWeight: 600, color: "var(--text-secondary)",
+              lineHeight: 1.4, transition: "all 0.15s", letterSpacing: "0.3px",
+            }}
+            onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "var(--accent)"; el.style.color = "var(--accent)" }}
+            onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "var(--border)"; el.style.color = "var(--text-secondary)" }}
+          >
+            {lang === "ru" ? "EN" : "RU"}
+          </button>
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            title={theme === "dark" ? s.lightTheme[lang] : s.darkTheme[lang]}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, lineHeight: 1, transition: "color 0.15s" }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"}
+          >
+            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+        </div>
       </div>
     </aside>
   )

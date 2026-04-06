@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { Plus, Trash2, Check, Pencil } from "lucide-react"
 import {
   defaultTasks,
-  categoryLabel,
   categoryColor,
   type Task,
   type TaskCategory,
@@ -13,6 +12,8 @@ import {
 import { Modal, fieldStyle, labelStyle, fieldGroupStyle, SubmitButton } from "@/components/modal"
 import { MetricCard } from "@/components/metric-card"
 import { logHistory } from "@/lib/history"
+import { useLang } from "@/lib/lang"
+import { t } from "@/lib/translations"
 
 const CUSTOM_KEY = "ailnex_custom_tasks"
 const DONE_KEY = "ailnex_task_done"
@@ -21,11 +22,6 @@ const TASK_EDITS_KEY = "ailnex_task_edits"
 type TaskWithSource = Task & { source?: string; done?: boolean }
 
 const CATEGORIES: TaskCategory[] = ["money", "work", "call", "other"]
-const PRIORITIES: { value: TaskPriority; label: string }[] = [
-  { value: "high", label: "🔴 Срочно" },
-  { value: "normal", label: "🟡 Обычная" },
-  { value: "low", label: "⚪ Не срочно" },
-]
 
 // ─── LocalStorage ─────────────────────────────────────────────────────────────
 
@@ -34,7 +30,7 @@ function loadCustom(): Task[] {
   try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]") } catch { return [] }
 }
 
-function saveCustom(t: Task[]) { localStorage.setItem(CUSTOM_KEY, JSON.stringify(t)) }
+function saveCustom(tasks: Task[]) { localStorage.setItem(CUSTOM_KEY, JSON.stringify(tasks)) }
 
 function loadTaskEdits(): Record<string, Partial<Task>> {
   if (typeof window === "undefined") return {}
@@ -72,17 +68,8 @@ function getGroup(dueDate?: string): Group {
 
 const GROUP_ORDER: Group[] = ["overdue", "today", "tomorrow", "week", "later", "nodate"]
 
-const groupMeta: Record<Group, { label: string; color: string }> = {
-  overdue: { label: "🔴 Просрочено", color: "#EF4444" },
-  today: { label: "📅 Сегодня", color: "#6366F1" },
-  tomorrow: { label: "📆 Завтра", color: "#F59E0B" },
-  week: { label: "📋 На этой неделе", color: "#3B82F6" },
-  later: { label: "🗓 Позже", color: "#525472" },
-  nodate: { label: "📌 Без даты", color: "#525472" },
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })
+function formatDate(iso: string, locale: string) {
+  return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" })
 }
 
 // ─── Add Task Modal ────────────────────────────────────────────────────────────
@@ -92,6 +79,8 @@ function TaskFormModal({ initial, onSave, onClose }: {
   onSave: (t: Task) => void
   onClose: () => void
 }) {
+  const { lang } = useLang()
+  const p = t.planner
   const [form, setForm] = useState({
     title: initial?.title ?? "",
     notes: initial?.notes ?? "",
@@ -102,6 +91,19 @@ function TaskFormModal({ initial, onSave, onClose }: {
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
   const fo = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"
   const bl = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "var(--border)"
+
+  const priorities: { value: TaskPriority; label: string }[] = [
+    { value: "high", label: p.high[lang] },
+    { value: "normal", label: p.normal[lang] },
+    { value: "low", label: p.low[lang] },
+  ]
+
+  const catLabel: Record<TaskCategory, string> = {
+    money: p.money[lang],
+    work: p.work[lang],
+    call: p.call[lang],
+    other: p.other[lang],
+  }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -118,41 +120,41 @@ function TaskFormModal({ initial, onSave, onClose }: {
   }
 
   return (
-    <Modal title={initial ? "Редактировать задачу" : "Новая задача"} onClose={onClose}>
+    <Modal title={initial ? p.editTask[lang] : p.newTaskTitle[lang]} onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Название *</label>
+          <label style={labelStyle}>{p.taskName[lang]}</label>
           <input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)}
-            placeholder="Что нужно сделать?" autoFocus onFocus={fo} onBlur={bl} />
+            placeholder={p.taskNamePlaceholder[lang]} autoFocus onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Заметки</label>
+          <label style={labelStyle}>{p.notesLabel[lang]}</label>
           <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 64 }}
             value={form.notes} onChange={e => set("notes", e.target.value)}
-            placeholder="Детали..." onFocus={fo} onBlur={bl} />
+            placeholder={p.notesPlaceholder[lang]} onFocus={fo} onBlur={bl} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <div>
-            <label style={labelStyle}>Категория</label>
+            <label style={labelStyle}>{p.category[lang]}</label>
             <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.category}
               onChange={e => set("category", e.target.value)} onFocus={fo} onBlur={bl}>
-              {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]}</option>)}
+              {CATEGORIES.map(c => <option key={c} value={c}>{catLabel[c]}</option>)}
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Приоритет</label>
+            <label style={labelStyle}>{p.priority[lang]}</label>
             <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.priority}
               onChange={e => set("priority", e.target.value)} onFocus={fo} onBlur={bl}>
-              {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              {priorities.map(pr => <option key={pr.value} value={pr.value}>{pr.label}</option>)}
             </select>
           </div>
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Дата</label>
+          <label style={labelStyle}>{p.dueDateLabel[lang]}</label>
           <input type="date" style={{ ...fieldStyle, colorScheme: "dark" }} value={form.dueDate}
             onChange={e => set("dueDate", e.target.value)} onFocus={fo} onBlur={bl} />
         </div>
-        <SubmitButton label={initial ? "Сохранить" : "Добавить задачу"} />
+        <SubmitButton label={initial ? p.saveBtn[lang] : p.addTaskBtn[lang]} />
       </form>
     </Modal>
   )
@@ -169,8 +171,18 @@ function TaskRow({ task, done, onToggle, onDelete, onEdit, onClick, isBot }: {
   onClick: () => void
   isBot?: boolean
 }) {
+  const { lang } = useLang()
+  const p = t.planner
   const [hovered, setHovered] = useState(false)
   const catColor = categoryColor[task.category]
+  const locale = lang === "ru" ? "ru-RU" : "en-US"
+
+  const catLabel: Record<TaskCategory, string> = {
+    money: p.money[lang],
+    work: p.work[lang],
+    call: p.call[lang],
+    other: p.other[lang],
+  }
 
   return (
     <div
@@ -230,15 +242,15 @@ function TaskRow({ task, done, onToggle, onDelete, onEdit, onClick, isBot }: {
         )}
         {task.priority === "high" && !done && (
           <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 20, background: "rgba(239,68,68,0.12)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.25)" }}>
-            🔴 Срочно
+            {p.high[lang]}
           </span>
         )}
         <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 20, background: `${catColor}15`, color: catColor, border: `1px solid ${catColor}25` }}>
-          {categoryLabel[task.category]}
+          {catLabel[task.category]}
         </span>
         {task.dueDate && (
           <span style={{ fontSize: 11, color: getGroup(task.dueDate) === "overdue" ? "#EF4444" : "var(--text-muted)" }}>
-            {formatDate(task.dueDate)}
+            {formatDate(task.dueDate, locale)}
           </span>
         )}
         {onEdit && hovered && (
@@ -274,8 +286,27 @@ function TaskDetailPanel({ task, done, onToggle, onClose }: {
   onToggle: () => void
   onClose: () => void
 }) {
+  const { lang } = useLang()
+  const p = t.planner
   const [notes, setNotes] = useState("")
   const catColor = categoryColor[task.category]
+  const locale = lang === "ru" ? "ru-RU" : "en-US"
+
+  const catLabel: Record<TaskCategory, string> = {
+    money: p.money[lang],
+    work: p.work[lang],
+    call: p.call[lang],
+    other: p.other[lang],
+  }
+
+  const groupMeta: Record<Group, { label: string; color: string }> = {
+    overdue: { label: `🔴 ${p.overdueGroup[lang]}`, color: "#EF4444" },
+    today: { label: `📅 ${p.todayGroup[lang]}`, color: "#6366F1" },
+    tomorrow: { label: `📆 ${p.tomorrowGroup[lang]}`, color: "#F59E0B" },
+    week: { label: `📋 ${p.weekGroup[lang]}`, color: "#3B82F6" },
+    later: { label: `🗓 ${p.laterGroup[lang]}`, color: "#525472" },
+    nodate: { label: `📌 ${p.nodateGroup[lang]}`, color: "#525472" },
+  }
 
   useEffect(() => {
     setNotes(localStorage.getItem(`ailnex_notes_${task.id}`) || task.notes || "")
@@ -306,11 +337,11 @@ function TaskDetailPanel({ task, done, onToggle, onClose }: {
         {/* Category + status */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
           <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: `${catColor}15`, color: catColor, border: `1px solid ${catColor}25` }}>
-            {categoryLabel[task.category]}
+            {catLabel[task.category]}
           </span>
           {task.priority === "high" && (
             <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: "rgba(239,68,68,0.12)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.2)" }}>
-              🔴 Срочно
+              {p.high[lang]}
             </span>
           )}
         </div>
@@ -323,7 +354,7 @@ function TaskDetailPanel({ task, done, onToggle, onClose }: {
         {/* Date */}
         {task.dueDate && (
           <div style={{ fontSize: 12, color: getGroup(task.dueDate) === "overdue" ? "#EF4444" : "var(--text-muted)", marginBottom: 16 }}>
-            📅 {formatDate(task.dueDate)} · {groupMeta[getGroup(task.dueDate)].label}
+            📅 {formatDate(task.dueDate, locale)} · {groupMeta[getGroup(task.dueDate)].label}
           </div>
         )}
 
@@ -340,20 +371,26 @@ function TaskDetailPanel({ task, done, onToggle, onClose }: {
           }}
         >
           <Check size={14} />
-          {done ? "Отметить как активную" : "Отметить выполненной"}
+          {done
+            ? (lang === "ru" ? "Отметить как активную" : "Mark as active")
+            : (lang === "ru" ? "Отметить выполненной" : "Mark as done")}
         </button>
 
         {/* Notes */}
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Заметки</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
+          {p.notesLabel[lang]}
+        </div>
         <textarea
           value={notes}
           onChange={e => saveNotes(e.target.value)}
-          placeholder="Пиши здесь..."
+          placeholder={p.notesPlaceholder[lang]}
           style={{ width: "100%", minHeight: 140, padding: "10px 12px", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--text-primary)", outline: "none", fontFamily: "inherit", resize: "vertical", lineHeight: 1.6, boxSizing: "border-box" }}
           onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
           onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}
         />
-        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>Сохраняется автоматически</div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+          {lang === "ru" ? "Сохраняется автоматически" : "Auto-saved"}
+        </div>
       </div>
     </>
   )
@@ -364,6 +401,10 @@ function TaskDetailPanel({ task, done, onToggle, onClose }: {
 type Filter = "all" | "active" | "done"
 
 export default function PlannerPage() {
+  const { lang } = useLang()
+  const p = t.planner
+  const locale = lang === "ru" ? "ru-RU" : "en-US"
+
   const [customTasks, setCustomTasks] = useState<Task[]>([])
   const [botTasks, setBotTasks] = useState<TaskWithSource[]>([])
   const [taskEdits, setTaskEdits] = useState<Record<string, Partial<Task>>>({})
@@ -374,6 +415,15 @@ export default function PlannerPage() {
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [mounted, setMounted] = useState(false)
+
+  const groupMeta: Record<Group, { label: string; color: string }> = {
+    overdue: { label: `🔴 ${p.overdueGroup[lang]}`, color: "#EF4444" },
+    today: { label: `📅 ${p.todayGroup[lang]}`, color: "#6366F1" },
+    tomorrow: { label: `📆 ${p.tomorrowGroup[lang]}`, color: "#F59E0B" },
+    week: { label: `📋 ${p.weekGroup[lang]}`, color: "#3B82F6" },
+    later: { label: `🗓 ${p.laterGroup[lang]}`, color: "#525472" },
+    nodate: { label: `📌 ${p.nodateGroup[lang]}`, color: "#525472" },
+  }
 
   useEffect(() => {
     setCustomTasks(loadCustom())
@@ -388,11 +438,11 @@ export default function PlannerPage() {
 
   if (!mounted) return null
 
-  const botTaskIds = new Set(botTasks.map(t => t.id))
+  const botTaskIds = new Set(botTasks.map(task => task.id))
   const allTasks: TaskWithSource[] = [
-    ...defaultTasks.map(t => ({ ...t, ...taskEdits[t.id] })),
-    ...botTasks.filter(t => !t.done).map(t => ({ ...t, ...taskEdits[t.id] })),
-    ...customTasks.map(t => ({ ...t, ...taskEdits[t.id] })),
+    ...defaultTasks.map(task => ({ ...task, ...taskEdits[task.id] })),
+    ...botTasks.filter(task => !task.done).map(task => ({ ...task, ...taskEdits[task.id] })),
+    ...customTasks.map(task => ({ ...task, ...taskEdits[task.id] })),
   ]
 
   const isDone = (id: string) => doneState[id] ?? false
@@ -405,58 +455,58 @@ export default function PlannerPage() {
     if (next) logHistory({ action: "moved", itemType: "order", itemTitle: title, from: "Активная", to: "Выполнено" })
   }
 
-  const handleAdd = (t: Task) => {
-    const updated = [...customTasks, t]
+  const handleAdd = (task: Task) => {
+    const updated = [...customTasks, task]
     setCustomTasks(updated)
     saveCustom(updated)
-    logHistory({ action: "added", itemType: "order", itemTitle: t.title })
+    logHistory({ action: "added", itemType: "order", itemTitle: task.title })
   }
 
-  const handleEditSave = (t: Task) => {
-    const isCustom = t.id.startsWith("task-")
+  const handleEditSave = (task: Task) => {
+    const isCustom = task.id.startsWith("task-")
     if (isCustom) {
-      const updated = customTasks.map(c => c.id === t.id ? t : c)
+      const updated = customTasks.map(c => c.id === task.id ? task : c)
       setCustomTasks(updated)
       saveCustom(updated)
     } else {
-      const updated = { ...taskEdits, [t.id]: t }
+      const updated = { ...taskEdits, [task.id]: task }
       setTaskEdits(updated)
       saveTaskEdits(updated)
     }
-    if (detailTask?.id === t.id) setDetailTask(t)
+    if (detailTask?.id === task.id) setDetailTask(task)
   }
 
   const handleDelete = (id: string) => {
     if (botTaskIds.has(id)) {
       fetch(`/api/tasks?id=${id}`, { method: "DELETE" }).catch(() => {})
-      setBotTasks(prev => prev.filter(t => t.id !== id))
+      setBotTasks(prev => prev.filter(task => task.id !== id))
       return
     }
-    const task = customTasks.find(t => t.id === id)
-    const updated = customTasks.filter(t => t.id !== id)
+    const task = customTasks.find(task => task.id === id)
+    const updated = customTasks.filter(task => task.id !== id)
     setCustomTasks(updated)
     saveCustom(updated)
     if (task) logHistory({ action: "deleted", itemType: "order", itemTitle: task.title })
   }
 
   // Apply filters
-  const filtered = allTasks.filter(t => {
-    if (filter === "active" && isDone(t.id)) return false
-    if (filter === "done" && !isDone(t.id)) return false
-    if (catFilter !== "all" && t.category !== catFilter) return false
+  const filtered = allTasks.filter(task => {
+    if (filter === "active" && isDone(task.id)) return false
+    if (filter === "done" && !isDone(task.id)) return false
+    if (catFilter !== "all" && task.category !== catFilter) return false
     return true
   })
 
   // Group
   const grouped = GROUP_ORDER.reduce<Record<Group, Task[]>>((acc, g) => {
-    acc[g] = filtered.filter(t => getGroup(t.dueDate) === g)
+    acc[g] = filtered.filter(task => getGroup(task.dueDate) === g)
     return acc
   }, { overdue: [], today: [], tomorrow: [], week: [], later: [], nodate: [] })
 
   // Metrics (active only)
-  const activeTasks = allTasks.filter(t => !isDone(t.id))
-  const overdueCount = activeTasks.filter(t => getGroup(t.dueDate) === "overdue").length
-  const todayCount = activeTasks.filter(t => getGroup(t.dueDate) === "today").length
+  const activeTasks = allTasks.filter(task => !isDone(task.id))
+  const overdueCount = activeTasks.filter(task => getGroup(task.dueDate) === "overdue").length
+  const todayCount = activeTasks.filter(task => getGroup(task.dueDate) === "today").length
 
   const filterBtn = (value: Filter, label: string) => (
     <button
@@ -471,16 +521,24 @@ export default function PlannerPage() {
     >{label}</button>
   )
 
+  const catFilters: [string, string][] = [
+    ["all", lang === "ru" ? "Все категории" : "All categories"],
+    ["money", "💰"],
+    ["work", "🛠"],
+    ["call", "📞"],
+    ["other", "📌"],
+  ]
+
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.4px" }}>
-            Планировщик
+            {p.title[lang]}
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, marginBottom: 0 }}>
-            {activeTasks.length} активных · {allTasks.filter(t => isDone(t.id)).length} выполнено
+            {activeTasks.length} {lang === "ru" ? "активных" : "active"} · {allTasks.filter(task => isDone(task.id)).length} {lang === "ru" ? "выполнено" : "completed"}
           </p>
         </div>
         <button
@@ -489,27 +547,27 @@ export default function PlannerPage() {
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.85"}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
         >
-          <Plus size={14} /> Задача
+          <Plus size={14} /> {p.newTask[lang]}
         </button>
       </div>
 
       {/* Metrics */}
       <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-        <MetricCard emoji="📋" value={activeTasks.length} label="Активных задач" color="var(--accent)" />
-        <MetricCard emoji="📅" value={todayCount} label="На сегодня" color="#6366F1" />
-        <MetricCard emoji="🔴" value={overdueCount} label="Просрочено" color={overdueCount > 0 ? "#EF4444" : "var(--text-muted)"} />
+        <MetricCard emoji="📋" value={activeTasks.length} label={p.totalTasks[lang]} color="var(--accent)" />
+        <MetricCard emoji="📅" value={todayCount} label={p.todayGroup[lang]} color="#6366F1" />
+        <MetricCard emoji="🔴" value={overdueCount} label={p.overdueGroup[lang]} color={overdueCount > 0 ? "#EF4444" : "var(--text-muted)"} />
       </div>
 
       {/* Filters */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 6 }}>
-          {filterBtn("all", "Все")}
-          {filterBtn("active", "Активные")}
-          {filterBtn("done", "Выполненные")}
+          {filterBtn("all", p.all[lang])}
+          {filterBtn("active", p.active[lang])}
+          {filterBtn("done", p.done[lang])}
         </div>
         <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 4px" }} />
         <div style={{ display: "flex", gap: 6 }}>
-          {([["all", "Все категории"], ["money", "💰"], ["work", "🛠"], ["call", "📞"], ["other", "📌"]] as [string, string][]).map(([val, lbl]) => (
+          {catFilters.map(([val, lbl]) => (
             <button key={val}
               onClick={() => setCatFilter(val as TaskCategory | "all")}
               style={{
@@ -528,7 +586,9 @@ export default function PlannerPage() {
       {/* Groups */}
       {filtered.length === 0 && (
         <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-          {filter === "done" ? "Нет выполненных задач." : "Нет задач. Нажми + чтобы добавить."}
+          {filter === "done"
+            ? (lang === "ru" ? "Нет выполненных задач." : "No completed tasks.")
+            : (lang === "ru" ? "Нет задач. Нажми + чтобы добавить." : "No tasks. Press + to add one.")}
         </div>
       )}
 
@@ -565,7 +625,7 @@ export default function PlannerPage() {
       </div>
 
       {showModal && <TaskFormModal onSave={handleAdd} onClose={() => setShowModal(false)} />}
-      {editTask && <TaskFormModal initial={editTask} onSave={t => { handleEditSave(t); setEditTask(null) }} onClose={() => setEditTask(null)} />}
+      {editTask && <TaskFormModal initial={editTask} onSave={task => { handleEditSave(task); setEditTask(null) }} onClose={() => setEditTask(null)} />}
       {detailTask && (
         <TaskDetailPanel
           task={detailTask}

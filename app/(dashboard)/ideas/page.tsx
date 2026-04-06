@@ -1,18 +1,20 @@
 "use client"
 import { useState, useEffect } from "react"
 import { Search, Loader2, Zap, Clock, TrendingUp, Users, ChevronDown, ChevronUp } from "lucide-react"
+import { useLang } from "@/lib/lang"
+import { t } from "@/lib/translations"
 
 type Tier = "Все" | "S" | "A" | "B" | "New" | "Archived"
 type Sphere = "все" | "freelance" | "local-biz" | "saas-dev" | "b2b-sales" | "professional" | "czech"
 
-const SPHERES: { value: Sphere; label: string; emoji: string; color: string }[] = [
-  { value: "все",          label: "Все сферы",       emoji: "🌐", color: "#6366F1" },
-  { value: "freelance",    label: "Фриланс",          emoji: "🧑‍💻", color: "#10B981" },
-  { value: "local-biz",    label: "Малый бизнес",     emoji: "🏪", color: "#F59E0B" },
-  { value: "saas-dev",     label: "SaaS / Dev",       emoji: "💻", color: "#3B82F6" },
-  { value: "b2b-sales",    label: "B2B / Продажи",    emoji: "📊", color: "#8B5CF6" },
-  { value: "professional", label: "Профессии",        emoji: "⚖️", color: "#EC4899" },
-  { value: "czech",        label: "🇨🇿 Чехия",        emoji: "🇨🇿", color: "#EF4444" },
+const SPHERES_META: { value: Sphere; ru: string; en: string; emoji: string; color: string }[] = [
+  { value: "все",          ru: "Все сферы",       en: "All spheres",   emoji: "🌐", color: "#6366F1" },
+  { value: "freelance",    ru: "Фриланс",          en: "Freelance",     emoji: "🧑‍💻", color: "#10B981" },
+  { value: "local-biz",    ru: "Малый бизнес",     en: "Local biz",     emoji: "🏪", color: "#F59E0B" },
+  { value: "saas-dev",     ru: "SaaS / Dev",       en: "SaaS / Dev",    emoji: "💻", color: "#3B82F6" },
+  { value: "b2b-sales",    ru: "B2B / Продажи",    en: "B2B / Sales",   emoji: "📊", color: "#8B5CF6" },
+  { value: "professional", ru: "Профессии",        en: "Professions",   emoji: "⚖️", color: "#EC4899" },
+  { value: "czech",        ru: "🇨🇿 Чехия",        en: "🇨🇿 Czech",     emoji: "🇨🇿", color: "#EF4444" },
 ]
 
 interface Idea {
@@ -57,8 +59,10 @@ const tierTextColors: Record<string, string> = {
 const statusColors: Record<string, string> = {
   active: "#22C55E", building: "#6366F1", new: "#F59E0B",
 }
-const statusLabels: Record<string, string> = {
-  active: "Активный", building: "Строим", new: "Идея",
+const statusLabels: Record<string, { ru: string; en: string }> = {
+  active:   { ru: "Активный", en: "Active" },
+  building: { ru: "Строим",   en: "Building" },
+  new:      { ru: "Идея",     en: "Idea" },
 }
 
 function scoreColor(val: number) {
@@ -79,19 +83,20 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
   )
 }
 
-function ResearchPanel({ research }: { research: Research }) {
+function ResearchPanel({ research, lang }: { research: Research; lang: string }) {
+  const id = t.ideas
   return (
     <div style={{
       marginTop: 16, padding: "20px 20px 16px", borderTop: "1px solid var(--border)",
       background: "rgba(99,102,241,0.04)", borderRadius: "0 0 12px 12px",
     }}>
-      {/* Ключевые метрики */}
+      {/* Key metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
         {[
-          { icon: <Zap size={13} />, label: "Первые деньги", value: `${research.weeks_to_first_revenue} нед.`, color: "#22C55E" },
-          { icon: <Clock size={13} />, label: "Сборка MVP", value: `${research.build_time_days} дней`, color: "#6366F1" },
-          { icon: <TrendingUp size={13} />, label: "MRR месяц 1", value: `$${research.mrr_month1}`, color: "#F59E0B" },
-          { icon: <TrendingUp size={13} />, label: "MRR месяц 3", value: `$${research.mrr_month3}`, color: "#22C55E" },
+          { icon: <Zap size={13} />, label: `${id.weeksRevenue[lang as "ru"|"en"]}`, value: `${research.weeks_to_first_revenue}`, color: "#22C55E" },
+          { icon: <Clock size={13} />, label: `${id.buildDays[lang as "ru"|"en"]}`, value: `${research.build_time_days}`, color: "#6366F1" },
+          { icon: <TrendingUp size={13} />, label: id.mrr1[lang as "ru"|"en"], value: `$${research.mrr_month1}`, color: "#F59E0B" },
+          { icon: <TrendingUp size={13} />, label: id.mrr3[lang as "ru"|"en"], value: `$${research.mrr_month3}`, color: "#22C55E" },
         ].map(m => (
           <div key={m.label} style={{
             background: "var(--bg-elevated)", borderRadius: 8, padding: "10px 12px",
@@ -111,11 +116,11 @@ function ResearchPanel({ research }: { research: Research }) {
         {research.summary}
       </div>
 
-      {/* Конкуренты */}
+      {/* Competitors */}
       {research.competitors?.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
-            Конкуренты
+            {id.competitors[lang as "ru"|"en"]}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {research.competitors.map((c, i) => (
@@ -135,17 +140,17 @@ function ResearchPanel({ research }: { research: Research }) {
       {/* ICP */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 6 }}>
-          Кто платит (ICP)
+          {id.icp[lang as "ru"|"en"]}
         </div>
         <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5, padding: "8px 12px", background: "var(--bg-elevated)", borderRadius: 6, borderLeft: "3px solid #6366F1" }}>
           <Users size={11} style={{ marginRight: 5, color: "#6366F1" }} />{research.icp}
         </div>
       </div>
 
-      {/* План сборки */}
+      {/* Build plan */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 6 }}>
-          План сборки
+          {id.buildPlan[lang as "ru"|"en"]}
         </div>
         <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
           {research.build_plan}
@@ -159,7 +164,7 @@ function ResearchPanel({ research }: { research: Research }) {
           border: "1px solid rgba(34,197,94,0.2)", borderRadius: 8,
           fontSize: 12, color: "#22C55E", lineHeight: 1.5,
         }}>
-          <strong>Первый шаг сегодня:</strong> {research.first_action}
+          <strong>{id.firstAction[lang as "ru"|"en"]}:</strong> {research.first_action}
         </div>
       )}
     </div>
@@ -168,7 +173,7 @@ function ResearchPanel({ research }: { research: Research }) {
 
 type SortKey = "score_desc" | "score_asc" | "newest" | "alpha_asc" | "alpha_desc" | "market" | "mono" | "speed" | "competition"
 
-const sortOptions: { value: SortKey; label: string }[] = [
+const sortOptionsRu: { value: SortKey; label: string }[] = [
   { value: "score_desc", label: "Оценка ↓" },
   { value: "score_asc",  label: "Оценка ↑" },
   { value: "newest",     label: "🆕 Новые первыми" },
@@ -180,7 +185,23 @@ const sortOptions: { value: SortKey; label: string }[] = [
   { value: "competition",label: "Конкуренция ↓" },
 ]
 
+const sortOptionsEn: { value: SortKey; label: string }[] = [
+  { value: "score_desc", label: "Score ↓" },
+  { value: "score_asc",  label: "Score ↑" },
+  { value: "newest",     label: "🆕 Newest first" },
+  { value: "alpha_asc",  label: "A → Z" },
+  { value: "alpha_desc", label: "Z → A" },
+  { value: "market",     label: "Market ↓" },
+  { value: "mono",       label: "Monetization ↓" },
+  { value: "speed",      label: "Speed ↓" },
+  { value: "competition",label: "Competition ↓" },
+]
+
 export default function IdeasPage() {
+  const { lang } = useLang()
+  const id = t.ideas
+  const SPHERES = SPHERES_META.map(s => ({ ...s, label: lang === "ru" ? s.ru : s.en }))
+  const sortOptions = lang === "ru" ? sortOptionsRu : sortOptionsEn
   const [filter, setFilter] = useState<Tier>("Все")
   const [sphere, setSphere] = useState<Sphere>("все")
   const [search, setSearch] = useState("")
@@ -250,7 +271,7 @@ export default function IdeasPage() {
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 600, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.5px" }}>Все идеи</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 600, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.5px" }}>{id.title[lang]}</h1>
         <span style={{
           background: "rgba(99,102,241,0.15)", color: "var(--accent)",
           fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 999,
@@ -264,7 +285,7 @@ export default function IdeasPage() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Поиск по названию или описанию..."
+            placeholder={lang === "ru" ? "Поиск по названию или описанию..." : "Search by title or description..."}
             style={{
               width: "100%", padding: "8px 12px 8px 32px",
               background: "var(--bg-surface)", border: "1px solid var(--border)",
@@ -340,7 +361,7 @@ export default function IdeasPage() {
           color: filter === "New" ? "#22C55E" : "var(--text-muted)",
           fontSize: 13, fontWeight: filter === "New" ? 500 : 400, cursor: "pointer",
         }}>
-          🆕 Новые (7д) ({ideas.filter(isNew).length})
+          🆕 {lang === "ru" ? "Новые (7д)" : "New (7d)"} ({ideas.filter(isNew).length})
         </button>
         <button onClick={() => setFilter("Archived")} style={{
           padding: "6px 16px", borderRadius: 8,
@@ -357,14 +378,14 @@ export default function IdeasPage() {
             border: "1px solid rgba(99,102,241,0.25)", background: "rgba(99,102,241,0.06)",
             color: "var(--text-secondary)", fontSize: 12, cursor: "pointer", transition: "all 0.15s",
           }}>
-            Сбросить
+            {lang === "ru" ? "Сбросить" : "Reset"}
           </button>
         )}
       </div>
 
       {loading && (
         <div style={{ textAlign: "center", color: "var(--text-muted)", paddingTop: 60, fontSize: 14 }}>
-          Загрузка...
+          {id.loading[lang]}
         </div>
       )}
 
@@ -405,7 +426,7 @@ export default function IdeasPage() {
                             background: (statusColors[idea.status] || '#F59E0B') + '20',
                             color: statusColors[idea.status] || '#F59E0B',
                             fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 6,
-                          }}>{statusLabels[idea.status] || idea.status}</span>
+                          }}>{(statusLabels[idea.status]?.[lang as "ru"|"en"]) || idea.status}</span>
                         )}
                         <span style={{ fontSize: 22, fontWeight: 700, color: scoreColor(idea.score), marginLeft: "auto" }}>
                           {idea.score}
@@ -421,7 +442,7 @@ export default function IdeasPage() {
 
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         {(() => {
-                          const sphereTag = (idea.tags || []).find(t => t.startsWith('sphere:'))?.replace('sphere:', '') as Sphere | undefined
+                          const sphereTag = (idea.tags || []).find(tag => tag.startsWith('sphere:'))?.replace('sphere:', '') as Sphere | undefined
                           const sphereMeta = sphereTag ? SPHERES.find(s => s.value === sphereTag) : null
                           return sphereMeta ? (
                             <span style={{
@@ -431,7 +452,7 @@ export default function IdeasPage() {
                             }}>{sphereMeta.emoji} {sphereMeta.label}</span>
                           ) : null
                         })()}
-                        {(idea.tags || []).filter(t => !t.startsWith('sphere:')).map(tag => (
+                        {(idea.tags || []).filter(tag => !tag.startsWith('sphere:')).map(tag => (
                           <span key={tag} style={{
                             background: "var(--bg-elevated)", color: "var(--text-muted)",
                             fontSize: 11, padding: "2px 8px", borderRadius: 999,
@@ -442,10 +463,10 @@ export default function IdeasPage() {
 
                     {/* Правая часть: скорбары + кнопка */}
                     <div style={{ width: 200, flexShrink: 0 }}>
-                      <ScoreBar label="Рынок" value={idea.market} />
-                      <ScoreBar label="Монетизация" value={idea.mono} />
-                      <ScoreBar label="Скорость" value={idea.speed} />
-                      <ScoreBar label="Конкуренция" value={idea.competition} />
+                      <ScoreBar label={id.market[lang as "ru"|"en"]} value={idea.market} />
+                      <ScoreBar label={id.mono[lang as "ru"|"en"]} value={idea.mono} />
+                      <ScoreBar label={id.speed[lang as "ru"|"en"]} value={idea.speed} />
+                      <ScoreBar label={id.competition[lang as "ru"|"en"]} value={idea.competition} />
 
                       <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
                         <button
@@ -460,8 +481,8 @@ export default function IdeasPage() {
                           }}
                         >
                           {isResearching
-                            ? <><Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Анализирую...</>
-                            : <><Search size={12} /> Исследовать</>
+                            ? <><Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> {id.researching[lang]}</>
+                            : <><Search size={12} /> {id.researchBtn[lang]}</>
                           }
                         </button>
                         {research && (
@@ -487,10 +508,10 @@ export default function IdeasPage() {
                     display: "flex", alignItems: "center", gap: 10, color: "var(--text-muted)", fontSize: 13,
                   }}>
                     <Loader2 size={14} style={{ animation: "spin 1s linear infinite", color: "#6366F1" }} />
-                    Claude исследует рынок, конкурентов и считает доход...
+                    {lang === "ru" ? "Claude исследует рынок, конкурентов и считает доход..." : "Claude is researching the market, competitors, and revenue..."}
                   </div>
                 )}
-                {isExpanded && research && <ResearchPanel research={research} />}
+                {isExpanded && research && <ResearchPanel research={research} lang={lang} />}
               </div>
             )
           })}

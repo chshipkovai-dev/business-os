@@ -2,6 +2,8 @@
 import { useState, useRef, useEffect } from "react"
 import { ideas } from "@/lib/data"
 import { Send } from "lucide-react"
+import { useLang } from "@/lib/lang"
+import { t } from "@/lib/translations"
 
 type Message = {
   role: "user" | "assistant"
@@ -24,10 +26,14 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 const selectedIdea = ideas[0]
 
 export default function AdvisorPage() {
+  const { lang } = useLang()
+  const a = t.advisor
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: `Привет! Я готов помочь с анализом бизнес идеи **${selectedIdea.title}**. Задай любой вопрос.`,
+      content: lang === "ru"
+        ? `Привет! Я готов помочь с анализом бизнес идеи **${selectedIdea.title}**. Задай любой вопрос.`
+        : `Hi! I'm ready to help analyze the business idea **${selectedIdea.title}**. Ask me anything.`,
     },
   ])
   const [input, setInput] = useState("")
@@ -82,7 +88,9 @@ export default function AdvisorPage() {
         const updated = [...prev]
         updated[updated.length - 1] = {
           ...updated[updated.length - 1],
-          content: "Произошла ошибка при получении ответа. Проверьте ANTHROPIC_API_KEY.",
+          content: lang === "ru"
+              ? "Произошла ошибка при получении ответа. Проверьте ANTHROPIC_API_KEY."
+              : "Error fetching response. Check ANTHROPIC_API_KEY.",
         }
         return updated
       })
@@ -116,7 +124,7 @@ export default function AdvisorPage() {
           padding:20,
           boxShadow:"0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)",
         }}>
-          <div style={{fontSize:11, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8}}>Контекст идеи</div>
+          <div style={{fontSize:11, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8}}>{lang === "ru" ? "Контекст идеи" : "Idea context"}</div>
           <div style={{fontSize:14, fontWeight:600, color:"var(--text-primary)", marginBottom:4, lineHeight:1.4}}>{selectedIdea.title}</div>
           <div style={{fontSize:11, color:"var(--text-secondary)", marginBottom:12, lineHeight:1.5}}>{selectedIdea.description}</div>
 
@@ -125,11 +133,11 @@ export default function AdvisorPage() {
             <span style={{background:"var(--bg-elevated)", color:"var(--text-secondary)", fontSize:11, padding:"2px 8px", borderRadius:6}}>{selectedIdea.score}</span>
           </div>
 
-          <ScoreBar label="Рынок" value={selectedIdea.market} />
-          <ScoreBar label="Боль" value={selectedIdea.pain} />
-          <ScoreBar label="Монетизация" value={selectedIdea.mono} />
-          <ScoreBar label="Скорость" value={selectedIdea.speed} />
-          <ScoreBar label="Конкуренция" value={selectedIdea.competition} />
+          <ScoreBar label={a.market[lang]} value={selectedIdea.market} />
+          <ScoreBar label={a.pain[lang]} value={selectedIdea.pain} />
+          <ScoreBar label={a.monetization[lang]} value={selectedIdea.mono} />
+          <ScoreBar label={a.speed[lang]} value={selectedIdea.speed} />
+          <ScoreBar label={a.competition[lang]} value={selectedIdea.competition} />
         </div>
 
         {/* Competitors */}
@@ -140,7 +148,7 @@ export default function AdvisorPage() {
           padding:20,
           boxShadow:"0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)",
         }}>
-          <div style={{fontSize:11, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12}}>Конкуренты</div>
+          <div style={{fontSize:11, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12}}>{a.competitors[lang]}</div>
           <div style={{display:"flex", flexDirection:"column", gap:8}}>
             {selectedIdea.competitors.map(c => (
               <div key={c} style={{display:"flex", alignItems:"center", gap:8}}>
@@ -160,11 +168,11 @@ export default function AdvisorPage() {
           boxShadow:"0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)",
         }}>
           <div style={{marginBottom:12}}>
-            <div style={{fontSize:11, color:"var(--text-muted)", marginBottom:2}}>Цена</div>
+            <div style={{fontSize:11, color:"var(--text-muted)", marginBottom:2}}>{a.price[lang]}</div>
             <div style={{fontSize:14, fontWeight:600, color:"var(--text-primary)"}}>{selectedIdea.price}</div>
           </div>
           <div>
-            <div style={{fontSize:11, color:"var(--text-muted)", marginBottom:2}}>Аудитория</div>
+            <div style={{fontSize:11, color:"var(--text-muted)", marginBottom:2}}>{a.audience[lang]}</div>
             <div style={{fontSize:12, color:"var(--text-secondary)"}}>{selectedIdea.audience}</div>
           </div>
         </div>
@@ -183,8 +191,8 @@ export default function AdvisorPage() {
       }}>
         {/* Chat header */}
         <div style={{padding:"16px 20px", borderBottom:"1px solid var(--border)"}}>
-          <div style={{fontSize:14, fontWeight:600, color:"var(--text-primary)"}}>AI Советник</div>
-          <div style={{fontSize:11, color:"var(--text-muted)", marginTop:2}}>claude-sonnet-4-6 · Отвечает на русском языке</div>
+          <div style={{fontSize:14, fontWeight:600, color:"var(--text-primary)"}}>{a.title[lang]}</div>
+          <div style={{fontSize:11, color:"var(--text-muted)", marginTop:2}}>claude-sonnet-4-6 · {lang === "ru" ? "Отвечает на русском языке" : "Responds in English"}</div>
         </div>
 
         {/* Messages */}
@@ -222,7 +230,7 @@ export default function AdvisorPage() {
             value={input}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
-            placeholder="Задай вопрос об идее... (Enter для отправки)"
+            placeholder={lang === "ru" ? "Задай вопрос об идее... (Enter для отправки)" : "Ask a question... (Enter to send)"}
             rows={1}
             style={{
               flex:1,
@@ -261,7 +269,7 @@ export default function AdvisorPage() {
             }}
           >
             <Send size={14} />
-            Отправить
+            {a.send[lang]}
           </button>
         </div>
       </div>

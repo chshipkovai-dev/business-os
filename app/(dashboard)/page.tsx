@@ -4,67 +4,48 @@ import { useState, useEffect } from "react"
 import { DndContext, DragOverlay, useDroppable, useDraggable, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { ExternalLink, ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react"
-import {
-  companyProjects,
-  stageLabel,
-  stageColor,
-  stageEmoji,
-  type CompanyProject,
-  type CompanyProjectStage,
-} from "@/lib/company-projects"
+import { stageColor, type CompanyProjectStage } from "@/lib/company-projects"
 import { Modal, fieldStyle, labelStyle, fieldGroupStyle, SubmitButton } from "@/components/modal"
 import { ProjectDetailPanel } from "@/components/detail-panel"
 import { MetricCard } from "@/components/metric-card"
 import { logHistory } from "@/lib/history"
+import { useLang } from "@/lib/lang"
+import { t } from "@/lib/translations"
 
-const STAGES_KEY = "ailnex_project_stages"
-const CUSTOM_KEY = "ailnex_custom_projects"
-const EDITS_KEY = "ailnex_project_edits"
 const COLUMNS: CompanyProjectStage[] = ["idea", "building", "launched"]
 
-// ─── LocalStorage helpers ─────────────────────────────────────────────────────
-
-function loadStages(): Record<string, CompanyProjectStage> {
-  if (typeof window === "undefined") return {}
-  try { return JSON.parse(localStorage.getItem(STAGES_KEY) || "{}") } catch { return {} }
+interface DBProject {
+  id: string
+  title: string
+  description: string
+  stage: CompanyProjectStage
+  url?: string | null
+  next_step?: string | null
+  tags: string[]
+  archived: boolean
 }
 
-function loadCustomProjects(): CompanyProject[] {
-  if (typeof window === "undefined") return []
-  try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]") } catch { return [] }
-}
-
-function saveStages(s: Record<string, CompanyProjectStage>) {
-  localStorage.setItem(STAGES_KEY, JSON.stringify(s))
-}
-
-function saveCustomProjects(p: CompanyProject[]) {
-  localStorage.setItem(CUSTOM_KEY, JSON.stringify(p))
-}
-
-function loadProjectEdits(): Record<string, Partial<CompanyProject>> {
-  if (typeof window === "undefined") return {}
-  try { return JSON.parse(localStorage.getItem(EDITS_KEY) || "{}") } catch { return {} }
-}
-
-function saveProjectEdits(e: Record<string, Partial<CompanyProject>>) {
-  localStorage.setItem(EDITS_KEY, JSON.stringify(e))
-}
-
-// ─── Project Form Modal (add + edit) ──────────────────────────────────────────
+// ─── Project Form Modal ───────────────────────────────────────────────────────
 
 function ProjectFormModal({ initial, onSave, onClose }: {
-  initial?: CompanyProject
-  onSave: (p: CompanyProject) => void
+  initial?: DBProject
+  onSave: (p: Partial<DBProject>) => void
   onClose: () => void
 }) {
+  const { lang } = useLang()
+  const b = t.board
+  const stageLabels: Record<CompanyProjectStage, string> = {
+    idea: b.idea[lang], building: b.building[lang], launched: b.launchedStage[lang],
+  }
+  const stageEmojis: Record<CompanyProjectStage, string> = { idea: "💡", building: "🛠", launched: "🚀" }
+
   const [form, setForm] = useState({
     title: initial?.title ?? "",
     description: initial?.description ?? "",
     stage: initial?.stage ?? "idea" as CompanyProjectStage,
     url: initial?.url ?? "",
-    tags: initial?.tags.join(", ") ?? "",
-    nextStep: initial?.nextStep ?? "",
+    tags: (initial?.tags ?? []).join(", "),
+    next_step: initial?.next_step ?? "",
   })
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -73,13 +54,12 @@ function ProjectFormModal({ initial, onSave, onClose }: {
     e.preventDefault()
     if (!form.title.trim()) return
     onSave({
-      id: initial?.id ?? `custom-${Date.now()}`,
       title: form.title.trim(),
       description: form.description.trim(),
       stage: form.stage,
-      url: form.url.trim() || undefined,
-      tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
-      nextStep: form.nextStep.trim() || undefined,
+      url: form.url.trim() || null,
+      tags: form.tags.split(",").map(tag => tag.trim()).filter(Boolean),
+      next_step: form.next_step.trim() || null,
     })
     onClose()
   }
@@ -88,42 +68,42 @@ function ProjectFormModal({ initial, onSave, onClose }: {
   const bl = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "var(--border)"
 
   return (
-    <Modal title={initial ? "Редактировать проект" : "Новый проект"} onClose={onClose}>
+    <Modal title={initial ? b.editProject[lang] : b.newProjectTitle[lang]} onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Название *</label>
+          <label style={labelStyle}>{b.name[lang]}</label>
           <input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)}
-            placeholder="Название проекта" autoFocus onFocus={fo} onBlur={bl} />
+            placeholder={b.namePlaceholder[lang]} autoFocus onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Описание</label>
+          <label style={labelStyle}>{b.description[lang]}</label>
           <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 72 }}
             value={form.description} onChange={e => set("description", e.target.value)}
-            placeholder="Что за проект?" onFocus={fo} onBlur={bl} />
+            placeholder={b.descriptionPlaceholder[lang]} onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Статус</label>
+          <label style={labelStyle}>{b.status[lang]}</label>
           <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.stage}
             onChange={e => set("stage", e.target.value)} onFocus={fo} onBlur={bl}>
-            {COLUMNS.map(s => <option key={s} value={s}>{stageEmoji[s]} {stageLabel[s]}</option>)}
+            {COLUMNS.map(s => <option key={s} value={s}>{stageEmojis[s]} {stageLabels[s]}</option>)}
           </select>
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>URL (опционально)</label>
-          <input style={fieldStyle} value={form.url} onChange={e => set("url", e.target.value)}
-            placeholder="https://..." onFocus={fo} onBlur={bl} />
+          <label style={labelStyle}>{b.urlLabel[lang]}</label>
+          <input style={fieldStyle} value={form.url ?? ""} onChange={e => set("url", e.target.value)}
+            placeholder={b.urlPlaceholder[lang]} onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Теги (через запятую)</label>
+          <label style={labelStyle}>{b.tags[lang]}</label>
           <input style={fieldStyle} value={form.tags} onChange={e => set("tags", e.target.value)}
-            placeholder="SaaS, AI, B2B" onFocus={fo} onBlur={bl} />
+            placeholder={b.tagsPlaceholder[lang]} onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Следующий шаг</label>
-          <input style={fieldStyle} value={form.nextStep} onChange={e => set("nextStep", e.target.value)}
-            placeholder="Что нужно сделать дальше?" onFocus={fo} onBlur={bl} />
+          <label style={labelStyle}>{b.nextStep[lang]}</label>
+          <input style={fieldStyle} value={form.next_step ?? ""} onChange={e => set("next_step", e.target.value)}
+            placeholder={b.nextStepPlaceholder[lang]} onFocus={fo} onBlur={bl} />
         </div>
-        <SubmitButton label={initial ? "Сохранить" : "Добавить проект"} />
+        <SubmitButton label={initial ? b.saveBtn[lang] : b.addBtn[lang]} />
       </form>
     </Modal>
   )
@@ -139,7 +119,7 @@ function CardContent({
   onDelete,
   onOpen,
 }: {
-  project: CompanyProject
+  project: DBProject
   color: string
   dragHandleProps?: Record<string, unknown>
   isOverlay?: boolean
@@ -167,7 +147,6 @@ function CardContent({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Delete button (custom projects only) */}
       {onDelete && hovered && !isOverlay && (
         <button
           onClick={e => { e.stopPropagation(); onDelete() }}
@@ -185,7 +164,6 @@ function CardContent({
         </button>
       )}
 
-      {/* Title row */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 6, paddingRight: onDelete ? 24 : 0 }}>
         <div
           {...dragHandleProps}
@@ -224,10 +202,10 @@ function CardContent({
         </div>
       )}
 
-      {project.nextStep && (
+      {project.next_step && (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "7px 9px", borderRadius: 7, background: `${color}10`, border: `1px solid ${color}25` }}>
           <ArrowRight size={11} color={color} style={{ flexShrink: 0, marginTop: 2 }} />
-          <span style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 1.45 }}>{project.nextStep}</span>
+          <span style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 1.45 }}>{project.next_step}</span>
         </div>
       )}
     </div>
@@ -237,7 +215,7 @@ function CardContent({
 // ─── Draggable Card ───────────────────────────────────────────────────────────
 
 function DraggableCard({ project, isDragging, onDelete, onOpen }: {
-  project: CompanyProject
+  project: DBProject
   isDragging?: boolean
   onDelete?: () => void
   onOpen?: () => void
@@ -256,19 +234,24 @@ function DraggableCard({ project, isDragging, onDelete, onOpen }: {
 
 function DroppableColumn({ stage, projects, activeId, onDelete, onOpen }: {
   stage: CompanyProjectStage
-  projects: CompanyProject[]
+  projects: DBProject[]
   activeId: string | null
   onDelete: (id: string) => void
-  onOpen: (p: CompanyProject) => void
+  onOpen: (p: DBProject) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage })
+  const { lang } = useLang()
   const color = stageColor[stage]
+  const stageLabels: Record<CompanyProjectStage, string> = {
+    idea: t.board.idea[lang], building: t.board.building[lang], launched: t.board.launchedStage[lang],
+  }
+  const stageEmojis: Record<CompanyProjectStage, string> = { idea: "💡", building: "🛠", launched: "🚀" }
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: `${color}12`, border: `1px solid ${color}25` }}>
-        <span style={{ fontSize: 13 }}>{stageEmoji[stage]}</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color, letterSpacing: "0.2px" }}>{stageLabel[stage]}</span>
+        <span style={{ fontSize: 13 }}>{stageEmojis[stage]}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color, letterSpacing: "0.2px" }}>{stageLabels[stage]}</span>
         <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", background: "var(--bg-elevated)", padding: "1px 6px", borderRadius: 10 }}>
           {projects.length}
         </span>
@@ -280,13 +263,13 @@ function DroppableColumn({ stage, projects, activeId, onDelete, onOpen }: {
             key={project.id}
             project={project}
             isDragging={project.id === activeId}
-            onDelete={project.id.startsWith("custom-") ? () => onDelete(project.id) : undefined}
+            onDelete={() => onDelete(project.id)}
             onOpen={() => onOpen(project)}
           />
         ))}
         {projects.length === 0 && !isOver && (
           <div style={{ padding: "20px 14px", borderRadius: 10, border: "1px dashed var(--border)", textAlign: "center", fontSize: 12, color: "var(--text-muted)" }}>
-            Перетащи сюда
+            {t.board.dragHere[lang]}
           </div>
         )}
       </div>
@@ -297,92 +280,98 @@ function DroppableColumn({ stage, projects, activeId, onDelete, onOpen }: {
 // ─── Board ────────────────────────────────────────────────────────────────────
 
 export default function CompanyBoard() {
-  const [stageOverrides, setStageOverrides] = useState<Record<string, CompanyProjectStage>>({})
-  const [customProjects, setCustomProjects] = useState<CompanyProject[]>([])
-  const [projectEdits, setProjectEdits] = useState<Record<string, Partial<CompanyProject>>>({})
+  const [projects, setProjects] = useState<DBProject[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
-  const [editProject, setEditProject] = useState<CompanyProject | null>(null)
-  const [detailProject, setDetailProject] = useState<CompanyProject | null>(null)
-  const [mounted, setMounted] = useState(false)
+  const [editProject, setEditProject] = useState<DBProject | null>(null)
+  const [detailProject, setDetailProject] = useState<DBProject | null>(null)
+  const { lang } = useLang()
+  const b = t.board
 
-  useEffect(() => {
-    setStageOverrides(loadStages())
-    setCustomProjects(loadCustomProjects())
-    setProjectEdits(loadProjectEdits())
-    setMounted(true)
-  }, [])
+  const stageLabels: Record<CompanyProjectStage, string> = {
+    idea: b.idea[lang], building: b.building[lang], launched: b.launchedStage[lang],
+  }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  const allProjects = [
-    ...companyProjects.filter(p => !p.archived),
-    ...customProjects,
-  ].map(p => ({ ...p, ...projectEdits[p.id], stage: (stageOverrides[p.id] ?? p.stage) as CompanyProjectStage }))
+  useEffect(() => {
+    fetch('/api/projects')
+      .then(r => r.json())
+      .then((data: DBProject[]) => {
+        setProjects((data || []).filter(p => !p.archived))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
 
-  const activeProject = allProjects.find(p => p.id === activeId) ?? null
+  const activeProject = projects.find(p => p.id === activeId) ?? null
 
   function onDragStart(e: DragStartEvent) { setActiveId(String(e.active.id)) }
 
-  function onDragEnd(e: DragEndEvent) {
+  async function onDragEnd(e: DragEndEvent) {
     setActiveId(null)
     const { active, over } = e
     if (!over) return
     const newStage = over.id as CompanyProjectStage
     if (!COLUMNS.includes(newStage)) return
-    const prev = allProjects.find(p => p.id === active.id)
-    const updated = { ...stageOverrides, [active.id]: newStage }
-    setStageOverrides(updated)
-    saveStages(updated)
-    if (prev && prev.stage !== newStage) {
-      logHistory({ action: "moved", itemType: "project", itemTitle: prev.title, from: stageLabel[prev.stage], to: stageLabel[newStage] })
+    const prev = projects.find(p => p.id === active.id)
+    if (!prev || prev.stage === newStage) return
+
+    setProjects(ps => ps.map(p => p.id === active.id ? { ...p, stage: newStage } : p))
+    await fetch(`/api/projects?id=${active.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: newStage }),
+    })
+    logHistory({ action: "moved", itemType: "project", itemTitle: prev.title, from: stageLabels[prev.stage], to: stageLabels[newStage] })
+  }
+
+  async function handleAdd(data: Partial<DBProject>) {
+    const res = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    const json = await res.json()
+    if (json.project) {
+      setProjects(ps => [...ps, json.project])
+      logHistory({ action: "added", itemType: "project", itemTitle: json.project.title, to: stageLabels[json.project.stage as CompanyProjectStage] })
     }
   }
 
-  function handleAdd(p: CompanyProject) {
-    const updated = [...customProjects, p]
-    setCustomProjects(updated)
-    saveCustomProjects(updated)
-    logHistory({ action: "added", itemType: "project", itemTitle: p.title, to: stageLabel[p.stage] })
-  }
-
-  function handleDelete(id: string) {
-    const proj = customProjects.find(p => p.id === id)
-    const updated = customProjects.filter(p => p.id !== id)
-    setCustomProjects(updated)
-    saveCustomProjects(updated)
-    const overrides = { ...stageOverrides }
-    delete overrides[id]
-    setStageOverrides(overrides)
-    saveStages(overrides)
+  async function handleDelete(id: string) {
+    const proj = projects.find(p => p.id === id)
+    setProjects(ps => ps.filter(p => p.id !== id))
+    await fetch(`/api/projects?id=${id}`, { method: 'DELETE' })
     if (proj) logHistory({ action: "deleted", itemType: "project", itemTitle: proj.title })
   }
 
-  function handleEdit(p: CompanyProject) {
-    const isCustom = p.id.startsWith("custom-")
-    if (isCustom) {
-      const updated = customProjects.map(c => c.id === p.id ? p : c)
-      setCustomProjects(updated)
-      saveCustomProjects(updated)
-    } else {
-      const updated = { ...projectEdits, [p.id]: p }
-      setProjectEdits(updated)
-      saveProjectEdits(updated)
-    }
-    setDetailProject(p)
+  async function handleEdit(data: Partial<DBProject>) {
+    if (!editProject) return
+    setProjects(ps => ps.map(p => p.id === editProject.id ? { ...p, ...data } : p))
+    await fetch(`/api/projects?id=${editProject.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
   }
 
-  if (!mounted) return null
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: "var(--text-muted)", fontSize: 13 }}>
+      {b.loading[lang]}
+    </div>
+  )
 
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.4px" }}>
-            Ailnex — Доска проектов
+            {b.title[lang]}
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, marginBottom: 0 }}>
-            {allProjects.length} проектов · перетащи карточку чтобы изменить статус
+            {projects.length} {b.subtitle[lang]}
           </p>
         </div>
         <button
@@ -391,15 +380,14 @@ export default function CompanyBoard() {
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.85"}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
         >
-          <Plus size={14} /> Проект
+          <Plus size={14} /> {b.newProject[lang]}
         </button>
       </div>
 
-      {/* Metrics */}
       <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
-        <MetricCard emoji="🛠" value={allProjects.filter(p => p.stage === "building").length} label="В разработке" color="#6366F1" />
-        <MetricCard emoji="🚀" value={allProjects.filter(p => p.stage === "launched").length} label="Запущено" color="#22C55E" />
-        <MetricCard emoji="📦" value={allProjects.length} label="Всего активных" color="var(--text-secondary)" />
+        <MetricCard emoji="🛠" value={projects.filter(p => p.stage === "building").length} label={b.inDev[lang]} color="#6366F1" />
+        <MetricCard emoji="🚀" value={projects.filter(p => p.stage === "launched").length} label={b.launched[lang]} color="#22C55E" />
+        <MetricCard emoji="📦" value={projects.length} label={b.total[lang]} color="var(--text-secondary)" />
       </div>
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -408,7 +396,7 @@ export default function CompanyBoard() {
             <DroppableColumn
               key={stage}
               stage={stage}
-              projects={allProjects.filter(p => p.stage === stage)}
+              projects={projects.filter(p => p.stage === stage)}
               activeId={activeId}
               onDelete={handleDelete}
               onOpen={setDetailProject}
@@ -424,8 +412,20 @@ export default function CompanyBoard() {
       </DndContext>
 
       {showModal && <ProjectFormModal onSave={handleAdd} onClose={() => setShowModal(false)} />}
-      {editProject && <ProjectFormModal initial={editProject} onSave={p => { handleEdit(p); setEditProject(null) }} onClose={() => setEditProject(null)} />}
-      {detailProject && <ProjectDetailPanel project={detailProject} onClose={() => setDetailProject(null)} onEdit={() => { setEditProject(detailProject); setDetailProject(null) }} />}
+      {editProject && (
+        <ProjectFormModal
+          initial={editProject}
+          onSave={data => { handleEdit(data); setEditProject(null) }}
+          onClose={() => setEditProject(null)}
+        />
+      )}
+      {detailProject && (
+        <ProjectDetailPanel
+          project={{ ...detailProject, url: detailProject.url ?? undefined, nextStep: detailProject.next_step ?? undefined }}
+          onClose={() => setDetailProject(null)}
+          onEdit={() => { setEditProject(detailProject); setDetailProject(null) }}
+        />
+      )}
     </div>
   )
 }

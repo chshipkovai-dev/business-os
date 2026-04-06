@@ -4,62 +4,50 @@ import { useState, useEffect } from "react"
 import { DndContext, DragOverlay, useDroppable, useDraggable, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Plus, Trash2 } from "lucide-react"
-import {
-  orders as initialOrders,
-  statusLabel,
-  statusColor,
-  statusEmoji,
-  type Order,
-  type OrderStatus,
-} from "@/lib/orders"
-import { companyProjects } from "@/lib/company-projects"
+import { statusColor, type OrderStatus } from "@/lib/orders"
 import { Modal, fieldStyle, labelStyle, fieldGroupStyle, SubmitButton } from "@/components/modal"
-import { OrderDetailPanel } from "@/components/detail-panel"
 import { MetricCard } from "@/components/metric-card"
 import { logHistory } from "@/lib/history"
+import { useLang } from "@/lib/lang"
+import { t } from "@/lib/translations"
 
-const ORDERS_KEY = "ailnex_order_statuses"
-const CUSTOM_ORDERS_KEY = "ailnex_custom_orders"
-const ORDER_EDITS_KEY = "ailnex_order_edits"
 const COLUMNS: OrderStatus[] = ["new", "discussion", "in_progress", "done", "invoiced"]
 const SOURCES = ["Upwork", "Referral", "Ailnex", "Direct", "Другое"]
 
-// ─── LocalStorage helpers ─────────────────────────────────────────────────────
-
-function loadStatuses(): Record<string, OrderStatus> {
-  if (typeof window === "undefined") return {}
-  try { return JSON.parse(localStorage.getItem(ORDERS_KEY) || "{}") } catch { return {} }
+interface DBOrder {
+  id: string
+  client: string
+  title: string
+  description?: string | null
+  status: OrderStatus
+  source?: string | null
+  budget?: string | null
+  deadline?: string | null
+  notes?: string | null
+  project_id?: string | null
 }
 
-function loadCustomOrders(): Order[] {
-  if (typeof window === "undefined") return []
-  try { return JSON.parse(localStorage.getItem(CUSTOM_ORDERS_KEY) || "[]") } catch { return [] }
+interface DBProject {
+  id: string
+  title: string
 }
 
-function saveStatuses(s: Record<string, OrderStatus>) {
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(s))
-}
+// ─── Order Form Modal ─────────────────────────────────────────────────────────
 
-function saveCustomOrders(o: Order[]) {
-  localStorage.setItem(CUSTOM_ORDERS_KEY, JSON.stringify(o))
-}
-
-function loadOrderEdits(): Record<string, Partial<Order>> {
-  if (typeof window === "undefined") return {}
-  try { return JSON.parse(localStorage.getItem(ORDER_EDITS_KEY) || "{}") } catch { return {} }
-}
-
-function saveOrderEdits(e: Record<string, Partial<Order>>) {
-  localStorage.setItem(ORDER_EDITS_KEY, JSON.stringify(e))
-}
-
-// ─── Order Form Modal (add + edit) ───────────────────────────────────────────
-
-function OrderFormModal({ initial, onSave, onClose }: {
-  initial?: Order
-  onSave: (o: Order) => void
+function OrderFormModal({ initial, projects, onSave, onClose }: {
+  initial?: DBOrder
+  projects: DBProject[]
+  onSave: (o: Partial<DBOrder>) => void
   onClose: () => void
 }) {
+  const { lang } = useLang()
+  const o = t.ordersPage
+  const statusLabels: Record<OrderStatus, string> = {
+    new: o.new[lang], discussion: o.discussion[lang], in_progress: o.inProgressStatus[lang],
+    done: o.done[lang], invoiced: o.invoiced[lang],
+  }
+  const statusEmojis: Record<OrderStatus, string> = { new: "🆕", discussion: "💬", in_progress: "🔨", done: "✅", invoiced: "🧾" }
+
   const [form, setForm] = useState({
     client: initial?.client ?? "",
     title: initial?.title ?? "",
@@ -69,7 +57,7 @@ function OrderFormModal({ initial, onSave, onClose }: {
     budget: initial?.budget ?? "",
     deadline: initial?.deadline ?? "",
     notes: initial?.notes ?? "",
-    projectId: initial?.projectId ?? "",
+    project_id: initial?.project_id ?? "",
   })
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -80,85 +68,84 @@ function OrderFormModal({ initial, onSave, onClose }: {
     e.preventDefault()
     if (!form.title.trim()) return
     onSave({
-      id: initial?.id ?? `custom-${Date.now()}`,
       client: form.client.trim() || "—",
       title: form.title.trim(),
-      description: form.description.trim(),
+      description: form.description.trim() || null,
       status: form.status,
-      source: form.source || undefined,
-      budget: form.budget.trim() || undefined,
-      deadline: form.deadline || undefined,
-      notes: form.notes.trim() || undefined,
-      projectId: form.projectId || undefined,
+      source: form.source || null,
+      budget: form.budget.trim() || null,
+      deadline: form.deadline || null,
+      notes: form.notes.trim() || null,
+      project_id: form.project_id || null,
     })
     onClose()
   }
 
   return (
-    <Modal title={initial ? "Редактировать заказ" : "Новый заказ"} onClose={onClose}>
+    <Modal title={initial ? o.editOrder[lang] : o.newOrderTitle[lang]} onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Название *</label>
+          <label style={labelStyle}>{o.orderName[lang]}</label>
           <input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)}
-            placeholder="Название заказа" autoFocus onFocus={fo} onBlur={bl} />
+            placeholder={o.orderNamePlaceholder[lang]} autoFocus onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Клиент</label>
+          <label style={labelStyle}>{o.client[lang]}</label>
           <input style={fieldStyle} value={form.client} onChange={e => set("client", e.target.value)}
-            placeholder="Имя клиента или компании" onFocus={fo} onBlur={bl} />
+            placeholder={o.clientPlaceholder[lang]} onFocus={fo} onBlur={bl} />
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Описание</label>
+          <label style={labelStyle}>{o.description[lang]}</label>
           <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 72 }}
-            value={form.description} onChange={e => set("description", e.target.value)}
-            placeholder="Что нужно сделать?" onFocus={fo} onBlur={bl} />
+            value={form.description ?? ""} onChange={e => set("description", e.target.value)}
+            placeholder={o.descriptionPlaceholder[lang]} onFocus={fo} onBlur={bl} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <div>
-            <label style={labelStyle}>Статус</label>
+            <label style={labelStyle}>{o.statusLabel[lang]}</label>
             <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.status}
               onChange={e => set("status", e.target.value)} onFocus={fo} onBlur={bl}>
-              {COLUMNS.map(s => <option key={s} value={s}>{statusEmoji[s]} {statusLabel[s]}</option>)}
+              {COLUMNS.map(s => <option key={s} value={s}>{statusEmojis[s]} {statusLabels[s]}</option>)}
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Источник</label>
-            <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.source}
+            <label style={labelStyle}>{o.source[lang]}</label>
+            <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.source ?? ""}
               onChange={e => set("source", e.target.value)} onFocus={fo} onBlur={bl}>
-              <option value="">— не указан</option>
+              <option value="">{o.noSource[lang]}</option>
               {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <div>
-            <label style={labelStyle}>Бюджет</label>
-            <input style={fieldStyle} value={form.budget} onChange={e => set("budget", e.target.value)}
-              placeholder="50k CZK, $500, ..." onFocus={fo} onBlur={bl} />
+            <label style={labelStyle}>{o.budget[lang]}</label>
+            <input style={fieldStyle} value={form.budget ?? ""} onChange={e => set("budget", e.target.value)}
+              placeholder={o.budgetPlaceholder[lang]} onFocus={fo} onBlur={bl} />
           </div>
           <div>
-            <label style={labelStyle}>Дедлайн</label>
-            <input type="date" style={{ ...fieldStyle, colorScheme: "dark" }} value={form.deadline}
+            <label style={labelStyle}>{o.deadline[lang]}</label>
+            <input type="date" style={{ ...fieldStyle, colorScheme: "dark" }} value={form.deadline ?? ""}
               onChange={e => set("deadline", e.target.value)} onFocus={fo} onBlur={bl} />
           </div>
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Связать с проектом</label>
-          <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.projectId}
-            onChange={e => set("projectId", e.target.value)} onFocus={fo} onBlur={bl}>
-            <option value="">— не связан</option>
-            {companyProjects.filter(p => !p.archived).map(p => (
+          <label style={labelStyle}>{o.linkProject[lang]}</label>
+          <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.project_id ?? ""}
+            onChange={e => set("project_id", e.target.value)} onFocus={fo} onBlur={bl}>
+            <option value="">{o.noLink[lang]}</option>
+            {projects.map(p => (
               <option key={p.id} value={p.id}>{p.title}</option>
             ))}
           </select>
         </div>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Заметки</label>
+          <label style={labelStyle}>{o.notes[lang]}</label>
           <textarea style={{ ...fieldStyle, resize: "vertical", minHeight: 60 }}
-            value={form.notes} onChange={e => set("notes", e.target.value)}
-            placeholder="Важные детали, следующие шаги..." onFocus={fo} onBlur={bl} />
+            value={form.notes ?? ""} onChange={e => set("notes", e.target.value)}
+            placeholder={o.notesPlaceholder[lang]} onFocus={fo} onBlur={bl} />
         </div>
-        <SubmitButton label={initial ? "Сохранить" : "Добавить заказ"} />
+        <SubmitButton label={initial ? o.saveBtn[lang] : o.addOrderBtn[lang]} />
       </form>
     </Modal>
   )
@@ -167,36 +154,33 @@ function OrderFormModal({ initial, onSave, onClose }: {
 // ─── Deadline Chip ────────────────────────────────────────────────────────────
 
 function DeadlineChip({ deadline }: { deadline: string }) {
+  const { lang } = useLang()
   const date = new Date(deadline)
   const diff = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   const color = diff < 0 ? "#EF4444" : diff <= 7 ? "#F59E0B" : "var(--text-muted)"
   const icon = diff < 0 ? "🔴" : diff <= 7 ? "🟡" : "📅"
-  const label = diff < 0 ? `−${Math.abs(diff)}д` : diff === 0 ? "Сегодня" : `${diff}д`
+  const dayLabel = diff < 0 ? `−${Math.abs(diff)}d` : diff === 0 ? t.ordersPage.today[lang] : `${diff}d`
+  const locale = lang === "en" ? "en-US" : "ru-RU"
   return (
     <span style={{ fontSize: 11, fontWeight: 600, color, display: "flex", alignItems: "center", gap: 3 }}>
-      {icon} {date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })} · {label}
+      {icon} {date.toLocaleDateString(locale, { day: "numeric", month: "short" })} · {dayLabel}
     </span>
   )
 }
 
 // ─── Card Content ─────────────────────────────────────────────────────────────
 
-function CardContent({
-  order,
-  color,
-  dragHandleProps,
-  isOverlay,
-  onDelete,
-  onOpen,
-}: {
-  order: Order
+function CardContent({ order, color, projects, dragHandleProps, isOverlay, onDelete, onOpen }: {
+  order: DBOrder
   color: string
+  projects: DBProject[]
   dragHandleProps?: Record<string, unknown>
   isOverlay?: boolean
   onDelete?: () => void
   onOpen?: () => void
 }) {
   const [hovered, setHovered] = useState(false)
+  const linkedProject = order.project_id ? projects.find(p => p.id === order.project_id) : null
 
   return (
     <div
@@ -233,7 +217,6 @@ function CardContent({
         </button>
       )}
 
-      {/* Client + source */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, paddingRight: onDelete ? 24 : 0 }}>
         <div
           {...dragHandleProps}
@@ -264,21 +247,16 @@ function CardContent({
 
       {(order.budget || order.deadline) && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {order.budget && (
-            <span style={{ fontSize: 12, color: "#22C55E", fontWeight: 600 }}>{order.budget}</span>
-          )}
+          {order.budget && <span style={{ fontSize: 12, color: "#22C55E", fontWeight: 600 }}>{order.budget}</span>}
           {order.deadline && <DeadlineChip deadline={order.deadline} />}
         </div>
       )}
 
-      {order.projectId && (() => {
-        const proj = companyProjects.find(p => p.id === order.projectId)
-        return proj ? (
-          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(99,102,241,0.12)", color: "var(--accent)", border: "1px solid rgba(99,102,241,0.25)", alignSelf: "flex-start" }}>
-            🔗 {proj.title}
-          </span>
-        ) : null
-      })()}
+      {linkedProject && (
+        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(99,102,241,0.12)", color: "var(--accent)", border: "1px solid rgba(99,102,241,0.25)", alignSelf: "flex-start" }}>
+          🔗 {linkedProject.title}
+        </span>
+      )}
 
       {order.notes && (
         <div style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 1.45, padding: "7px 9px", borderRadius: 7, background: `${color}10`, border: `1px solid ${color}25` }}>
@@ -289,8 +267,9 @@ function CardContent({
   )
 }
 
-function DraggableCard({ order, isDragging, onDelete, onOpen }: {
-  order: Order
+function DraggableCard({ order, projects, isDragging, onDelete, onOpen }: {
+  order: DBOrder
+  projects: DBProject[]
   isDragging?: boolean
   onDelete?: () => void
   onOpen?: () => void
@@ -300,26 +279,33 @@ function DraggableCard({ order, isDragging, onDelete, onOpen }: {
 
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.35 : 1 }}>
-      <CardContent order={order} color={color} dragHandleProps={{ ...attributes, ...listeners }} onDelete={onDelete} onOpen={onOpen} />
+      <CardContent order={order} color={color} projects={projects} dragHandleProps={{ ...attributes, ...listeners }} onDelete={onDelete} onOpen={onOpen} />
     </div>
   )
 }
 
-function DroppableColumn({ status, orders, activeId, onDelete, onOpen }: {
+function DroppableColumn({ status, orders, projects, activeId, onDelete, onOpen }: {
   status: OrderStatus
-  orders: Order[]
+  orders: DBOrder[]
+  projects: DBProject[]
   activeId: string | null
   onDelete: (id: string) => void
-  onOpen: (o: Order) => void
+  onOpen: (o: DBOrder) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
+  const { lang } = useLang()
   const color = statusColor[status]
+  const statusLabels: Record<OrderStatus, string> = {
+    new: t.ordersPage.new[lang], discussion: t.ordersPage.discussion[lang],
+    in_progress: t.ordersPage.inProgressStatus[lang], done: t.ordersPage.done[lang], invoiced: t.ordersPage.invoiced[lang],
+  }
+  const statusEmojis: Record<OrderStatus, string> = { new: "🆕", discussion: "💬", in_progress: "🔨", done: "✅", invoiced: "🧾" }
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: `${color}12`, border: `1px solid ${color}25` }}>
-        <span style={{ fontSize: 13 }}>{statusEmoji[status]}</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color, letterSpacing: "0.2px" }}>{statusLabel[status]}</span>
+        <span style={{ fontSize: 13 }}>{statusEmojis[status]}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color, letterSpacing: "0.2px" }}>{statusLabels[status]}</span>
         <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", background: "var(--bg-elevated)", padding: "1px 6px", borderRadius: 10 }}>
           {orders.length}
         </span>
@@ -330,14 +316,15 @@ function DroppableColumn({ status, orders, activeId, onDelete, onOpen }: {
           <DraggableCard
             key={order.id}
             order={order}
+            projects={projects}
             isDragging={order.id === activeId}
-            onDelete={order.id.startsWith("custom-") ? () => onDelete(order.id) : undefined}
+            onDelete={() => onDelete(order.id)}
             onOpen={() => onOpen(order)}
           />
         ))}
         {orders.length === 0 && !isOver && (
           <div style={{ padding: "20px 14px", borderRadius: 10, border: "1px dashed var(--border)", textAlign: "center", fontSize: 12, color: "var(--text-muted)" }}>
-            Перетащи сюда
+            {t.ordersPage.dragHere[lang]}
           </div>
         )}
       </div>
@@ -348,93 +335,100 @@ function DroppableColumn({ status, orders, activeId, onDelete, onOpen }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
-  const [statusOverrides, setStatusOverrides] = useState<Record<string, OrderStatus>>({})
-  const [customOrders, setCustomOrders] = useState<Order[]>([])
-  const [orderEdits, setOrderEdits] = useState<Record<string, Partial<Order>>>({})
+  const [orders, setOrders] = useState<DBOrder[]>([])
+  const [projects, setProjects] = useState<DBProject[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
-  const [editOrder, setEditOrder] = useState<Order | null>(null)
-  const [detailOrder, setDetailOrder] = useState<Order | null>(null)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setStatusOverrides(loadStatuses())
-    setCustomOrders(loadCustomOrders())
-    setOrderEdits(loadOrderEdits())
-    setMounted(true)
-  }, [])
+  const [editOrder, setEditOrder] = useState<DBOrder | null>(null)
+  const [detailOrder, setDetailOrder] = useState<DBOrder | null>(null)
+  const { lang } = useLang()
+  const o = t.ordersPage
+  const statusLabels: Record<OrderStatus, string> = {
+    new: o.new[lang], discussion: o.discussion[lang],
+    in_progress: o.inProgressStatus[lang], done: o.done[lang], invoiced: o.invoiced[lang],
+  }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  const allOrders = [...initialOrders, ...customOrders].map(o => ({
-    ...o,
-    ...orderEdits[o.id],
-    status: (statusOverrides[o.id] ?? o.status) as OrderStatus,
-  }))
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/orders').then(r => r.json()),
+      fetch('/api/projects').then(r => r.json()),
+    ]).then(([ordersData, projectsData]) => {
+      setOrders(ordersData || [])
+      setProjects((projectsData || []).filter((p: DBProject & { archived: boolean }) => !p.archived))
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
 
-  const activeOrder = allOrders.find(o => o.id === activeId) ?? null
+  const activeOrder = orders.find(o => o.id === activeId) ?? null
 
   function onDragStart(e: DragStartEvent) { setActiveId(String(e.active.id)) }
 
-  function onDragEnd(e: DragEndEvent) {
+  async function onDragEnd(e: DragEndEvent) {
     setActiveId(null)
     const { active, over } = e
     if (!over) return
     const newStatus = over.id as OrderStatus
     if (!COLUMNS.includes(newStatus)) return
-    const prev = allOrders.find(o => o.id === active.id)
-    const updated = { ...statusOverrides, [active.id]: newStatus }
-    setStatusOverrides(updated)
-    saveStatuses(updated)
-    if (prev && prev.status !== newStatus) {
-      logHistory({ action: "moved", itemType: "order", itemTitle: prev.title, from: statusLabel[prev.status], to: statusLabel[newStatus] })
+    const prev = orders.find(o => o.id === active.id)
+    if (!prev || prev.status === newStatus) return
+
+    setOrders(os => os.map(o => o.id === active.id ? { ...o, status: newStatus } : o))
+    await fetch(`/api/orders?id=${active.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    })
+    logHistory({ action: "moved", itemType: "order", itemTitle: prev.title, from: statusLabels[prev.status], to: statusLabels[newStatus] })
+  }
+
+  async function handleAdd(data: Partial<DBOrder>) {
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    const json = await res.json()
+    if (json.order) {
+      setOrders(os => [json.order, ...os])
+      logHistory({ action: "added", itemType: "order", itemTitle: json.order.title, to: statusLabels[json.order.status as OrderStatus] })
     }
   }
 
-  function handleAdd(o: Order) {
-    const updated = [...customOrders, o]
-    setCustomOrders(updated)
-    saveCustomOrders(updated)
-    logHistory({ action: "added", itemType: "order", itemTitle: o.title, to: statusLabel[o.status] })
+  async function handleEdit(data: Partial<DBOrder>) {
+    if (!editOrder) return
+    setOrders(os => os.map(o => o.id === editOrder.id ? { ...o, ...data } : o))
+    await fetch(`/api/orders?id=${editOrder.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
   }
 
-  function handleEdit(o: Order) {
-    const isCustom = o.id.startsWith("custom-")
-    if (isCustom) {
-      const updated = customOrders.map(c => c.id === o.id ? o : c)
-      setCustomOrders(updated)
-      saveCustomOrders(updated)
-    } else {
-      const updated = { ...orderEdits, [o.id]: o }
-      setOrderEdits(updated)
-      saveOrderEdits(updated)
-    }
-    setDetailOrder(o)
-  }
-
-  function handleDelete(id: string) {
-    const order = customOrders.find(o => o.id === id)
-    const updated = customOrders.filter(o => o.id !== id)
-    setCustomOrders(updated)
-    saveCustomOrders(updated)
-    const overrides = { ...statusOverrides }
-    delete overrides[id]
-    setStatusOverrides(overrides)
-    saveStatuses(overrides)
+  async function handleDelete(id: string) {
+    const order = orders.find(o => o.id === id)
+    setOrders(os => os.filter(o => o.id !== id))
+    await fetch(`/api/orders?id=${id}`, { method: 'DELETE' })
     if (order) logHistory({ action: "deleted", itemType: "order", itemTitle: order.title })
   }
 
-  if (!mounted) return null
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: "var(--text-muted)", fontSize: 13 }}>
+      {o.loading[lang]}
+    </div>
+  )
 
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.4px" }}>
-            Заказы
+            {o.title[lang]}
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, marginBottom: 0 }}>
-            {allOrders.length} заказов · перетащи карточку чтобы изменить статус
+            {orders.length} {o.subtitle[lang]}
           </p>
         </div>
         <button
@@ -443,15 +437,14 @@ export default function OrdersPage() {
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.85"}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
         >
-          <Plus size={14} /> Заказ
+          <Plus size={14} /> {o.newOrder[lang]}
         </button>
       </div>
 
-      {/* Metrics */}
       <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
-        <MetricCard emoji="🔨" value={allOrders.filter(o => o.status === "in_progress").length} label="В работе" color="#3B82F6" />
-        <MetricCard emoji="✅" value={allOrders.filter(o => o.status === "done" || o.status === "invoiced").length} label="Завершено" color="#22C55E" />
-        <MetricCard emoji="📋" value={allOrders.length} label="Всего заказов" color="var(--text-secondary)" />
+        <MetricCard emoji="🔨" value={orders.filter(ord => ord.status === "in_progress").length} label={o.inProgress[lang]} color="#3B82F6" />
+        <MetricCard emoji="✅" value={orders.filter(ord => ord.status === "done" || ord.status === "invoiced").length} label={o.completed[lang]} color="#22C55E" />
+        <MetricCard emoji="📋" value={orders.length} label={o.total[lang]} color="var(--text-secondary)" />
       </div>
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -460,7 +453,8 @@ export default function OrdersPage() {
             <DroppableColumn
               key={status}
               status={status}
-              orders={allOrders.filter(o => o.status === status)}
+              orders={orders.filter(o => o.status === status)}
+              projects={projects}
               activeId={activeId}
               onDelete={handleDelete}
               onOpen={setDetailOrder}
@@ -470,14 +464,44 @@ export default function OrdersPage() {
 
         <DragOverlay>
           {activeOrder && (
-            <CardContent order={activeOrder} color={statusColor[activeOrder.status]} isOverlay />
+            <CardContent order={activeOrder} color={statusColor[activeOrder.status]} projects={projects} isOverlay />
           )}
         </DragOverlay>
       </DndContext>
 
-      {showModal && <OrderFormModal onSave={handleAdd} onClose={() => setShowModal(false)} />}
-      {editOrder && <OrderFormModal initial={editOrder} onSave={o => { handleEdit(o); setEditOrder(null) }} onClose={() => setEditOrder(null)} />}
-      {detailOrder && <OrderDetailPanel order={detailOrder} onClose={() => setDetailOrder(null)} onEdit={() => { setEditOrder(detailOrder); setDetailOrder(null) }} />}
+      {showModal && <OrderFormModal projects={projects} onSave={handleAdd} onClose={() => setShowModal(false)} />}
+      {editOrder && (
+        <OrderFormModal
+          initial={editOrder}
+          projects={projects}
+          onSave={data => { handleEdit(data); setEditOrder(null) }}
+          onClose={() => setEditOrder(null)}
+        />
+      )}
+      {detailOrder && (
+        <div
+          onClick={() => setDetailOrder(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, maxWidth: 480, width: "90%", maxHeight: "80vh", overflowY: "auto" }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>{detailOrder.client} · {detailOrder.source}</div>
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 12px" }}>{detailOrder.title}</h2>
+            {detailOrder.description && <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 16 }}>{detailOrder.description}</p>}
+            {detailOrder.budget && <div style={{ fontSize: 13, color: "#22C55E", fontWeight: 600, marginBottom: 8 }}>💰 {detailOrder.budget}</div>}
+            {detailOrder.notes && <div style={{ fontSize: 13, color: "var(--text-secondary)", padding: "10px 14px", borderRadius: 8, background: "var(--bg-elevated)", marginBottom: 16 }}>{detailOrder.notes}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { setEditOrder(detailOrder); setDetailOrder(null) }}
+                style={{ flex: 1, padding: "8px 14px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>
+                {o.editBtn[lang]}
+              </button>
+              <button onClick={() => setDetailOrder(null)}
+                style={{ padding: "8px 14px", background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>
+                {o.closeBtn[lang]}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
