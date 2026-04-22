@@ -11,14 +11,14 @@ function getDB() {
   )
 }
 
-async function sendTelegram(msg: string) {
+async function sendTelegramWithButtons(msg: string, reply_markup?: object) {
   const token = process.env.TELEGRAM_BOT_TOKEN
   const chatId = process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) return
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' }),
+    body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML', reply_markup }),
   }).catch(() => {})
 }
 
@@ -119,11 +119,16 @@ export async function POST(req: NextRequest) {
       ...plan.build_plan.map((day: string) => `• ${day}`),
       ``,
       `🚀 Первый файл: <code>${plan.first_file}</code>`,
-      ``,
-      `✅ Апрув? Ответь <b>да</b> чтобы передать Builder Agent`,
     ].join('\n')
 
-    await sendTelegram(msg)
+    const keyboard = task_id ? {
+      inline_keyboard: [[
+        { text: '✅ Апрув — передать Builder', callback_data: `approve:${task_id}` },
+        { text: '✏️ Нужны правки', callback_data: `revise:${task_id}` },
+      ]]
+    } : undefined
+
+    await sendTelegramWithButtons(msg, keyboard)
 
     return NextResponse.json({ ok: true, plan })
   } catch (err) {
