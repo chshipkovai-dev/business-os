@@ -15,7 +15,7 @@ function NavLink({ href, label, icon: Icon, active }: { href: string; label: str
       display: "flex", alignItems: "center", gap: 9, padding: "7px 10px",
       borderRadius: 7, fontSize: 13, fontWeight: active ? 500 : 400,
       color: active ? "var(--accent)" : "var(--text-secondary)",
-      background: active ? "rgba(99,102,241,0.1)" : "transparent",
+      background: active ? "rgba(0,229,255,0.08)" : "transparent",
       textDecoration: "none", transition: "all 0.15s",
     }}
       onMouseEnter={e => { if (!active) { const el = e.currentTarget as HTMLElement; el.style.background = "var(--bg-elevated)"; el.style.color = "var(--text-primary)" } }}
@@ -116,7 +116,7 @@ function SidebarInner() {
                     display: "flex", alignItems: "center", gap: 9,
                     padding: "6px 10px", borderRadius: 7, fontSize: 12,
                     color: active ? "var(--accent)" : "var(--text-muted)",
-                    background: active ? "rgba(99,102,241,0.08)" : "transparent",
+                    background: active ? "rgba(0,229,255,0.06)" : "transparent",
                     fontWeight: active ? 500 : 400,
                     textDecoration: "none", transition: "all 0.15s",
                   }}

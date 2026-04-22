@@ -64,7 +64,7 @@ function ProjectFormModal({ initial, onSave, onClose }: {
     onClose()
   }
 
-  const fo = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"
+  const fo = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "rgba(0,229,255,0.4)"
   const bl = (e: React.FocusEvent) => (e.target as HTMLElement).style.borderColor = "var(--border)"
 
   return (
@@ -385,7 +385,7 @@ export default function CompanyBoard() {
       </div>
 
       <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
-        <MetricCard emoji="🛠" value={projects.filter(p => p.stage === "building").length} label={b.inDev[lang]} color="#6366F1" />
+        <MetricCard emoji="🛠" value={projects.filter(p => p.stage === "building").length} label={b.inDev[lang]} color="var(--accent)" />
         <MetricCard emoji="🚀" value={projects.filter(p => p.stage === "launched").length} label={b.launched[lang]} color="#22C55E" />
         <MetricCard emoji="📦" value={projects.length} label={b.total[lang]} color="var(--text-secondary)" />
       </div>

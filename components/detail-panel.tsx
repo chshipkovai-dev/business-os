@@ -214,7 +214,7 @@ function NotesField({ value, onChange }: { value: string; onChange: (v: string) 
           boxSizing: "border-box",
           transition: "border-color 0.15s",
         }}
-        onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(99,102,241,0.5)"}
+        onFocus={e => (e.target as HTMLElement).style.borderColor = "rgba(0,229,255,0.4)"}
         onBlur={e => (e.target as HTMLElement).style.borderColor = "var(--border)"}
       />
       <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>Сохраняется автоматически</div>
