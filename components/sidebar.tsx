@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGrid, ShoppingBag, Lightbulb, Archive, ChevronDown, ChevronRight, FolderOpen, TrendingUp, Sun, Moon, Clock, CheckSquare, Target } from "lucide-react"
+import { LayoutGrid, ShoppingBag, Lightbulb, Archive, ChevronDown, ChevronRight, FolderOpen, TrendingUp, Sun, Moon, Clock, CheckSquare, Target, Users } from "lucide-react"
 import { useState, useEffect, Suspense } from "react"
 import { useLang } from "@/lib/lang"
 import { t } from "@/lib/translations"
@@ -41,6 +41,7 @@ function SidebarInner() {
     { href: "/orders", label: s.orders[lang], icon: ShoppingBag },
     { href: "/planner", label: s.planner[lang], icon: CheckSquare },
     { href: "/niches", label: s.niches[lang], icon: Target },
+    { href: "/team", label: "AI Team", icon: Users },
   ]
 
   const archiveLinks = [
