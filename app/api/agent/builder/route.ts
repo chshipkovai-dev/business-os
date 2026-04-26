@@ -22,11 +22,10 @@ async function sendTelegram(msg: string) {
   }).catch(() => {})
 }
 
-async function pushToGitHub(filePath: string, content: string, commitMessage: string, repo?: string) {
+async function pushToGitHub(filePath: string, content: string, commitMessage: string, repo: string) {
   const token = process.env.GITHUB_TOKEN
-  const targetRepo = repo || process.env.GITHUB_REPO || 'chshipkovai-dev/business-os'
 
-  const checkRes = await fetch(`https://api.github.com/repos/${targetRepo}/contents/${filePath}`, {
+  const checkRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
     headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
   })
 
@@ -42,7 +41,7 @@ async function pushToGitHub(filePath: string, content: string, commitMessage: st
   }
   if (sha) body.sha = sha
 
-  const res = await fetch(`https://api.github.com/repos/${targetRepo}/contents/${filePath}`, {
+  const res = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -55,29 +54,73 @@ async function pushToGitHub(filePath: string, content: string, commitMessage: st
   return { ok: res.ok, data: await res.json() }
 }
 
+function extractFilesFromPlan(notes: string): { files: string[], plan: string, repo: string } {
+  const repoMatch = notes.match(/GITHUB_REPO:\s*([^\n]+)/)
+  const repo = repoMatch ? repoMatch[1].trim() : (process.env.GITHUB_REPO || 'chshipkovai-dev/business-os')
+
+  const jsonStart = notes.indexOf('{')
+  const jsonEnd = notes.lastIndexOf('}')
+
+  if (jsonStart === -1 || jsonEnd === -1) {
+    return { files: ['app/page.tsx'], plan: notes, repo }
+  }
+
+  try {
+    const planJson = JSON.parse(notes.substring(jsonStart, jsonEnd + 1))
+    const structure = planJson.structure || {}
+
+    const pages = (structure.pages || []).map((p: string) => {
+      const path = p.split(' —')[0].trim()
+      return path.startsWith('app/') ? path : `app/${path}`
+    })
+
+    const components = (structure.components || []).map((c: string) => {
+      const path = c.split(' —')[0].trim()
+      return path.startsWith('components/') ? path : `components/${path}`
+    })
+
+    const apiRoutes = (structure.api_routes || []).map((r: string) => {
+      const path = r.split(' —')[0].trim()
+      if (path.includes('/route.ts')) return path
+      return path.startsWith('app/api/') ? `${path}/route.ts` : `app/api/${path}/route.ts`
+    })
+
+    const firstFile = planJson.first_file || 'app/layout.tsx'
+    const allFiles = [firstFile, ...pages, ...components, ...apiRoutes]
+      .filter(Boolean)
+      .filter((f, i, arr) => arr.indexOf(f) === i)
+
+    return { files: allFiles, plan: JSON.stringify(planJson, null, 2), repo }
+  } catch {
+    return { files: ['app/page.tsx'], plan: notes, repo }
+  }
+}
+
 async function generateFile(title: string, plan: string, filePath: string, createdFiles: string[]) {
   const prompt = `Ты — Builder Agent компании ailnex. Генерируешь ГОТОВЫЙ production код.
 
-Стек: Next.js 15 App Router, TypeScript, Tailwind CSS, Supabase, Claude API.
-Стиль: inline styles через style={{}}, CSS переменные (--accent, --bg-surface, --text-primary, --text-muted, --border, --bg-elevated), font-family: var(--font-mono) и var(--font-display).
-Цвета акцентов: --accent = #00e5ff (циановый), --success = #10b981, --warning = #f59e0b.
+Стек: Next.js 15 App Router, TypeScript, Tailwind CSS.
+Дизайн: тёмная тема, современный SaaS стиль. Используй inline Tailwind классы.
+Цвет акцента: #00e5ff (циановый). Фон: #0a0a0f. Поверхности: #111118.
 
 Задача: ${title}
-План: ${plan}
+План проекта: ${plan}
 Уже созданные файлы: ${createdFiles.join(', ') || 'нет'}
 Сейчас генерируй: ${filePath}
 
 Создай ПОЛНЫЙ рабочий код файла ${filePath}.
-Без заглушек, без TODO, без placeholder. Реальный контент.
-Если это page.tsx — красивый UI в стиле ailnex дашборда.
-Если это компонент — полностью рабочий с правильными props.
-Если это API route — рабочий handler.
+- Без заглушек, без TODO, без placeholder текста
+- Реальный контент на английском языке
+- Если page.tsx — красивый полный UI со всеми секциями
+- Если компонент — полностью рабочий с правильными TypeScript props
+- Если layout.tsx — правильные метатеги, шрифты
+- Если route.ts — рабочий API handler
 
 Ответь ТОЛЬКО валидным JSON без markdown:
 {
   "file_path": "${filePath}",
   "content": "полный код файла",
-  "commit_message": "feat: описание"
+  "commit_message": "feat: краткое описание"
 }`
 
   const response = await ai.messages.create({
@@ -105,31 +148,7 @@ export async function POST(req: NextRequest) {
 
   if (error || !task) return NextResponse.json({ error: 'task not found' }, { status: 404 })
 
-  let plan = task.notes || ''
-  let allFiles: string[] = []
-  let taskRepo: string | undefined
-
-  try {
-    const planMatch = plan.match(/\[PLANNING AGENT\]\n([\s\S]+?)(?:\[|$)/)
-    if (planMatch) {
-      const planJson = JSON.parse(planMatch[1].trim())
-      const structure = planJson.structure || {}
-      // Репо может быть указано в плане как github_repo
-      if (planJson.github_repo) taskRepo = planJson.github_repo
-      allFiles = [
-        planJson.first_file,
-        ...(structure.pages || []).map((p: string) => `app/${p.replace(/^\//, '')}`),
-        ...(structure.components || []).map((c: string) => `components/${c}`),
-        ...(structure.api_routes || []).map((r: string) => `app/api/${r.replace(/^\/api\//, '')}/route.ts`),
-      ].filter(Boolean).filter((f, i, arr) => arr.indexOf(f) === i)
-      plan = JSON.stringify(planJson, null, 2)
-    }
-    // Также ищем GITHUB_REPO: в notes напрямую
-    const repoMatch = task.notes?.match(/GITHUB_REPO:\s*(\S+)/)
-    if (repoMatch) taskRepo = repoMatch[1]
-  } catch { /* используем notes */ }
-
-  if (allFiles.length === 0) allFiles = ['app/page.tsx']
+  const { files: allFiles, plan, repo } = extractFilesFromPlan(task.notes || '')
 
   await db.from('tasks').update({ agent_status: 'building' }).eq('id', task_id)
 
@@ -137,7 +156,8 @@ export async function POST(req: NextRequest) {
     `⚙️ <b>Builder Agent запущен</b>`,
     ``,
     `📌 <b>${task.title}</b>`,
-    `📁 Создаю ${allFiles.length} файлов по очереди...`,
+    `📦 Репо: <code>${repo}</code>`,
+    `📁 Создаю ${allFiles.length} файлов:`,
     ``,
     ...allFiles.map((f, i) => `${i + 1}. <code>${f}</code>`),
   ].join('\n'))
@@ -150,11 +170,11 @@ export async function POST(req: NextRequest) {
       await sendTelegram(`🔨 Генерирую <code>${filePath}</code>...`)
 
       const result = await generateFile(task.title, plan, filePath, createdFiles)
-      const pushResult = await pushToGitHub(result.file_path, result.content, result.commit_message, taskRepo)
+      const pushResult = await pushToGitHub(result.file_path, result.content, result.commit_message, repo)
 
       if (pushResult.ok) {
         createdFiles.push(filePath)
-        await sendTelegram(`✓ <code>${filePath}</code> — готово`)
+        await sendTelegram(`✓ <code>${filePath}</code>`)
       } else {
         failedFiles.push(filePath)
         await sendTelegram(`✗ <code>${filePath}</code> — ошибка GitHub`)
@@ -164,30 +184,26 @@ export async function POST(req: NextRequest) {
 
     } catch (err) {
       failedFiles.push(filePath)
-      await sendTelegram(`✗ <code>${filePath}</code> — ${String(err).slice(0, 100)}`)
+      await sendTelegram(`✗ <code>${filePath}</code> — ${String(err).slice(0, 80)}`)
     }
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://business-os-alpha-rust.vercel.app'
-
   await db.from('tasks').update({
     agent_status: failedFiles.length === 0 ? 'done' : 'building',
-    notes: `${task.notes}\n\n[BUILDER AGENT]\nСоздано: ${createdFiles.join(', ')}\nОшибки: ${failedFiles.join(', ') || 'нет'}`,
+    notes: `${task.notes}\n\n[BUILDER AGENT]\nРепо: ${repo}\nСоздано: ${createdFiles.join(', ')}\nОшибки: ${failedFiles.join(', ') || 'нет'}`,
   }).eq('id', task_id)
 
   await sendTelegram([
-    `${failedFiles.length === 0 ? '✅' : '⚠️'} <b>Builder Agent — ${failedFiles.length === 0 ? 'всё готово' : 'частично готово'}</b>`,
+    `${failedFiles.length === 0 ? '✅' : '⚠️'} <b>Builder — ${failedFiles.length === 0 ? 'всё готово' : 'частично'}</b>`,
     ``,
     `📌 <b>${task.title}</b>`,
+    `📦 <code>${repo}</code>`,
     ``,
-    `✓ Создано файлов: <b>${createdFiles.length}</b>`,
-    ...createdFiles.map(f => `  • <code>${f}</code>`),
-    failedFiles.length > 0 ? `\n✗ Ошибки: ${failedFiles.length}` : '',
-    ...failedFiles.map(f => `  • <code>${f}</code>`),
+    `✓ Создано: <b>${createdFiles.length}</b> файлов`,
+    failedFiles.length > 0 ? `✗ Ошибок: ${failedFiles.length}` : '',
     ``,
-    `🚀 Vercel деплоит автоматически`,
-    `🔗 ${appUrl}`,
+    `🔗 https://github.com/${repo}`,
   ].filter(Boolean).join('\n'))
 
-  return NextResponse.json({ ok: true, created: createdFiles, failed: failedFiles })
+  return NextResponse.json({ ok: true, created: createdFiles, failed: failedFiles, repo })
 }
