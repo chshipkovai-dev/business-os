@@ -22,11 +22,11 @@ async function sendTelegram(msg: string) {
   }).catch(() => {})
 }
 
-async function pushToGitHub(filePath: string, content: string, commitMessage: string) {
+async function pushToGitHub(filePath: string, content: string, commitMessage: string, repo?: string) {
   const token = process.env.GITHUB_TOKEN
-  const repo = process.env.GITHUB_REPO || 'chshipkovai-dev/business-os'
+  const targetRepo = repo || process.env.GITHUB_REPO || 'chshipkovai-dev/business-os'
 
-  const checkRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+  const checkRes = await fetch(`https://api.github.com/repos/${targetRepo}/contents/${filePath}`, {
     headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
   })
 
@@ -42,7 +42,7 @@ async function pushToGitHub(filePath: string, content: string, commitMessage: st
   }
   if (sha) body.sha = sha
 
-  const res = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+  const res = await fetch(`https://api.github.com/repos/${targetRepo}/contents/${filePath}`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -107,12 +107,15 @@ export async function POST(req: NextRequest) {
 
   let plan = task.notes || ''
   let allFiles: string[] = []
+  let taskRepo: string | undefined
 
   try {
     const planMatch = plan.match(/\[PLANNING AGENT\]\n([\s\S]+?)(?:\[|$)/)
     if (planMatch) {
       const planJson = JSON.parse(planMatch[1].trim())
       const structure = planJson.structure || {}
+      // Репо может быть указано в плане как github_repo
+      if (planJson.github_repo) taskRepo = planJson.github_repo
       allFiles = [
         planJson.first_file,
         ...(structure.pages || []).map((p: string) => `app/${p.replace(/^\//, '')}`),
@@ -121,6 +124,9 @@ export async function POST(req: NextRequest) {
       ].filter(Boolean).filter((f, i, arr) => arr.indexOf(f) === i)
       plan = JSON.stringify(planJson, null, 2)
     }
+    // Также ищем GITHUB_REPO: в notes напрямую
+    const repoMatch = task.notes?.match(/GITHUB_REPO:\s*(\S+)/)
+    if (repoMatch) taskRepo = repoMatch[1]
   } catch { /* используем notes */ }
 
   if (allFiles.length === 0) allFiles = ['app/page.tsx']
@@ -144,7 +150,7 @@ export async function POST(req: NextRequest) {
       await sendTelegram(`🔨 Генерирую <code>${filePath}</code>...`)
 
       const result = await generateFile(task.title, plan, filePath, createdFiles)
-      const pushResult = await pushToGitHub(result.file_path, result.content, result.commit_message)
+      const pushResult = await pushToGitHub(result.file_path, result.content, result.commit_message, taskRepo)
 
       if (pushResult.ok) {
         createdFiles.push(filePath)
