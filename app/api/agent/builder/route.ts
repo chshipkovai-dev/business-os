@@ -27,10 +27,7 @@ async function pushToGitHub(filePath: string, content: string, commitMessage: st
   const repo = process.env.GITHUB_REPO || 'chshipkovai-dev/business-os'
 
   const checkRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/vnd.github.v3+json',
-    },
+    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
   })
 
   let sha: string | undefined
@@ -55,31 +52,44 @@ async function pushToGitHub(filePath: string, content: string, commitMessage: st
     body: JSON.stringify(body),
   })
 
-  const data = await res.json()
-  return { ok: res.ok, data }
+  return { ok: res.ok, data: await res.json() }
 }
 
-const BUILDER_PROMPT = `Ты — Builder Agent компании ailnex. Получаешь план от Planning Agent и генерируешь ГОТОВЫЙ код.
+async function generateFile(title: string, plan: string, filePath: string, createdFiles: string[]) {
+  const prompt = `Ты — Builder Agent компании ailnex. Генерируешь ГОТОВЫЙ production код.
 
 Стек: Next.js 15 App Router, TypeScript, Tailwind CSS, Supabase, Claude API.
-Стиль кода: такой же как в проекте — inline styles через style={{}}, CSS переменные (--accent, --bg-surface, --text-primary и тд), font-family: var(--font-mono) и var(--font-display).
+Стиль: inline styles через style={{}}, CSS переменные (--accent, --bg-surface, --text-primary, --text-muted, --border, --bg-elevated), font-family: var(--font-mono) и var(--font-display).
+Цвета акцентов: --accent = #00e5ff (циановый), --success = #10b981, --warning = #f59e0b.
 
-Задача: {TITLE}
-План: {PLAN}
-Первый файл для создания: {FIRST_FILE}
+Задача: ${title}
+План: ${plan}
+Уже созданные файлы: ${createdFiles.join(', ') || 'нет'}
+Сейчас генерируй: ${filePath}
 
-Сгенерируй содержимое файла {FIRST_FILE}.
-Это должен быть ПОЛНЫЙ, РАБОЧИЙ код — без заглушек, без TODO, без placeholder текста.
-Используй реальные данные из плана.
+Создай ПОЛНЫЙ рабочий код файла ${filePath}.
+Без заглушек, без TODO, без placeholder. Реальный контент.
+Если это page.tsx — красивый UI в стиле ailnex дашборда.
+Если это компонент — полностью рабочий с правильными props.
+Если это API route — рабочий handler.
 
 Ответь ТОЛЬКО валидным JSON без markdown:
 {
-  "file_path": "путь к файлу относительно корня проекта",
+  "file_path": "${filePath}",
   "content": "полный код файла",
-  "commit_message": "feat: краткое описание что сделано",
-  "summary": "2-3 предложения что создано и как это работает",
-  "next_files": ["следующие файлы которые нужно создать", "в порядке приоритета"]
+  "commit_message": "feat: описание"
 }`
+
+  const response = await ai.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 8000,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+  return JSON.parse(text)
+}
 
 export async function POST(req: NextRequest) {
   const { task_id } = await req.json()
@@ -96,16 +106,24 @@ export async function POST(req: NextRequest) {
   if (error || !task) return NextResponse.json({ error: 'task not found' }, { status: 404 })
 
   let plan = task.notes || ''
-  let firstFile = 'app/page.tsx'
+  let allFiles: string[] = []
 
   try {
-    const planMatch = plan.match(/\[PLANNING AGENT\]\n([\s\S]+)/)
+    const planMatch = plan.match(/\[PLANNING AGENT\]\n([\s\S]+?)(?:\[|$)/)
     if (planMatch) {
-      const planJson = JSON.parse(planMatch[1])
-      firstFile = planJson.first_file || firstFile
+      const planJson = JSON.parse(planMatch[1].trim())
+      const structure = planJson.structure || {}
+      allFiles = [
+        planJson.first_file,
+        ...(structure.pages || []).map((p: string) => `app/${p.replace(/^\//, '')}`),
+        ...(structure.components || []).map((c: string) => `components/${c}`),
+        ...(structure.api_routes || []).map((r: string) => `app/api/${r.replace(/^\/api\//, '')}/route.ts`),
+      ].filter(Boolean).filter((f, i, arr) => arr.indexOf(f) === i)
       plan = JSON.stringify(planJson, null, 2)
     }
-  } catch { /* используем notes как есть */ }
+  } catch { /* используем notes */ }
+
+  if (allFiles.length === 0) allFiles = ['app/page.tsx']
 
   await db.from('tasks').update({ agent_status: 'building' }).eq('id', task_id)
 
@@ -113,70 +131,57 @@ export async function POST(req: NextRequest) {
     `⚙️ <b>Builder Agent запущен</b>`,
     ``,
     `📌 <b>${task.title}</b>`,
-    `🔨 Генерирую код...`,
+    `📁 Создаю ${allFiles.length} файлов по очереди...`,
+    ``,
+    ...allFiles.map((f, i) => `${i + 1}. <code>${f}</code>`),
   ].join('\n'))
 
-  const prompt = BUILDER_PROMPT
-    .replace('{TITLE}', task.title)
-    .replace('{PLAN}', plan)
-    .replace('{FIRST_FILE}', firstFile)
-    .replace('{FIRST_FILE}', firstFile)
+  const createdFiles: string[] = []
+  const failedFiles: string[] = []
 
-  try {
-    const response = await ai.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      messages: [{ role: 'user', content: prompt }],
-    })
+  for (const filePath of allFiles) {
+    try {
+      await sendTelegram(`🔨 Генерирую <code>${filePath}</code>...`)
 
-    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-    const text = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
-    const result = JSON.parse(text)
+      const result = await generateFile(task.title, plan, filePath, createdFiles)
+      const pushResult = await pushToGitHub(result.file_path, result.content, result.commit_message)
 
-    const pushResult = await pushToGitHub(
-      result.file_path,
-      result.content,
-      result.commit_message
-    )
+      if (pushResult.ok) {
+        createdFiles.push(filePath)
+        await sendTelegram(`✓ <code>${filePath}</code> — готово`)
+      } else {
+        failedFiles.push(filePath)
+        await sendTelegram(`✗ <code>${filePath}</code> — ошибка GitHub`)
+      }
 
-    if (!pushResult.ok) {
-      throw new Error(`GitHub push failed: ${JSON.stringify(pushResult.data)}`)
+      await new Promise(r => setTimeout(r, 2000))
+
+    } catch (err) {
+      failedFiles.push(filePath)
+      await sendTelegram(`✗ <code>${filePath}</code> — ${String(err).slice(0, 100)}`)
     }
-
-    await db.from('tasks').update({
-      agent_status: 'done',
-      notes: `${task.notes}\n\n[BUILDER AGENT]\nФайл: ${result.file_path}\n${result.summary}\n\nСледующие файлы:\n${result.next_files.join('\n')}`,
-    }).eq('id', task_id)
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://business-os-alpha-rust.vercel.app'
-
-    await sendTelegram([
-      `✅ <b>Builder Agent — готово!</b>`,
-      ``,
-      `📌 <b>${task.title}</b>`,
-      ``,
-      `📄 Файл создан: <code>${result.file_path}</code>`,
-      ``,
-      `${result.summary}`,
-      ``,
-      `<b>Следующие файлы:</b>`,
-      ...result.next_files.slice(0, 3).map((f: string) => `• <code>${f}</code>`),
-      ``,
-      `🚀 Vercel деплоит автоматически...`,
-      `🔗 ${appUrl}`,
-    ].join('\n'))
-
-    return NextResponse.json({ ok: true, file: result.file_path, summary: result.summary })
-
-  } catch (err) {
-    await db.from('tasks').update({ agent_status: 'approved' }).eq('id', task_id)
-
-    await sendTelegram([
-      `❌ <b>Builder Agent — ошибка</b>`,
-      ``,
-      `${String(err)}`,
-    ].join('\n'))
-
-    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://business-os-alpha-rust.vercel.app'
+
+  await db.from('tasks').update({
+    agent_status: failedFiles.length === 0 ? 'done' : 'building',
+    notes: `${task.notes}\n\n[BUILDER AGENT]\nСоздано: ${createdFiles.join(', ')}\nОшибки: ${failedFiles.join(', ') || 'нет'}`,
+  }).eq('id', task_id)
+
+  await sendTelegram([
+    `${failedFiles.length === 0 ? '✅' : '⚠️'} <b>Builder Agent — ${failedFiles.length === 0 ? 'всё готово' : 'частично готово'}</b>`,
+    ``,
+    `📌 <b>${task.title}</b>`,
+    ``,
+    `✓ Создано файлов: <b>${createdFiles.length}</b>`,
+    ...createdFiles.map(f => `  • <code>${f}</code>`),
+    failedFiles.length > 0 ? `\n✗ Ошибки: ${failedFiles.length}` : '',
+    ...failedFiles.map(f => `  • <code>${f}</code>`),
+    ``,
+    `🚀 Vercel деплоит автоматически`,
+    `🔗 ${appUrl}`,
+  ].filter(Boolean).join('\n'))
+
+  return NextResponse.json({ ok: true, created: createdFiles, failed: failedFiles })
 }
