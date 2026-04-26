@@ -22,7 +22,13 @@ async function sendTelegram(msg: string) {
   }).catch(() => {})
 }
 
+const PROTECTED_REPOS = ['chshipkovai-dev/business-os']
+
 async function pushToGitHub(filePath: string, content: string, commitMessage: string, repo: string) {
+  if (PROTECTED_REPOS.includes(repo)) {
+    throw new Error(`Builder blocked: cannot push to protected repo ${repo}`)
+  }
+
   const token = process.env.GITHUB_TOKEN
 
   const checkRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
@@ -56,7 +62,7 @@ async function pushToGitHub(filePath: string, content: string, commitMessage: st
 
 function extractFilesFromPlan(notes: string): { files: string[], plan: string, repo: string } {
   const repoMatch = notes.match(/GITHUB_REPO:\s*([^\n]+)/)
-  const repo = repoMatch ? repoMatch[1].trim() : (process.env.GITHUB_REPO || 'chshipkovai-dev/business-os')
+  let repo = repoMatch ? repoMatch[1].trim() : (process.env.GITHUB_REPO || 'chshipkovai-dev/business-os')
 
   const jsonStart = notes.indexOf('{')
   const jsonEnd = notes.lastIndexOf('}')
@@ -67,6 +73,7 @@ function extractFilesFromPlan(notes: string): { files: string[], plan: string, r
 
   try {
     const planJson = JSON.parse(notes.substring(jsonStart, jsonEnd + 1))
+    if (planJson.github_repo) repo = planJson.github_repo
     const structure = planJson.structure || {}
 
     const pages = (structure.pages || []).map((p: string) => {

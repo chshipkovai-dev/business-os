@@ -27,10 +27,19 @@ const PLANNING_PROMPT = `Ты — Senior Planning Agent компании ailnex.
 Задача: {TITLE}
 Детали: {NOTES}
 Тип: {CATEGORY}
+Репозиторий: {REPO}
 
-Сделай профессиональный технический анализ. Ответь ТОЛЬКО валидным JSON без markdown:
+Стек ailnex: Next.js 15 App Router, TypeScript, Tailwind CSS, Supabase, Claude API, Vercel.
+
+ВАЖНО по структуре файлов:
+- pages: только чистые пути, например "app/page.tsx", "app/layout.tsx" — БЕЗ описания через " —"
+- components: только чистые пути, например "components/ui/Button.tsx" — БЕЗ описания
+- api_routes: только чистые пути, например "app/api/register/route.ts" — БЕЗ описания
+
+Ответь ТОЛЬКО валидным JSON без markdown:
 {
   "project_name": "короткое название проекта",
+  "github_repo": "{REPO}",
   "goal": "одно предложение — что именно строим и какую проблему решаем",
   "use_cases": [
     "Use case 1: кто + что делает + зачем",
@@ -43,10 +52,10 @@ const PLANNING_PROMPT = `Ты — Senior Planning Agent компании ailnex.
     "Шаг 3: пользователь видит Z"
   ],
   "structure": {
-    "pages": ["список страниц или экранов"],
-    "components": ["список компонентов"],
-    "api_routes": ["список API роутов если нужны"],
-    "db_tables": ["список таблиц Supabase если нужны"]
+    "pages": ["app/layout.tsx", "app/page.tsx"],
+    "components": ["components/ui/Button.tsx"],
+    "api_routes": ["app/api/register/route.ts"],
+    "db_tables": ["leads — id, email, plan, created_at"]
   },
   "tech_decisions": [
     "Решение 1: что используем и почему",
@@ -63,7 +72,7 @@ const PLANNING_PROMPT = `Ты — Senior Planning Agent компании ailnex.
   ],
   "estimate_days": 3,
   "complexity": "low",
-  "first_file": "первый файл который нужно создать — например app/page.tsx"
+  "first_file": "app/layout.tsx"
 }`
 
 export async function POST(req: NextRequest) {
@@ -71,10 +80,15 @@ export async function POST(req: NextRequest) {
 
   if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
 
+  const repoMatch = notes?.match(/GITHUB_REPO:\s*([^\n]+)/)
+  const repo = repoMatch ? repoMatch[1].trim() : 'chshipkovai-dev/business-os'
+
   const prompt = PLANNING_PROMPT
     .replace('{TITLE}', title)
     .replace('{NOTES}', notes || 'нет')
     .replace('{CATEGORY}', category || 'work')
+    .replace('{REPO}', repo)
+    .replace('{REPO}', repo)
 
   try {
     const response = await ai.messages.create({
@@ -86,6 +100,7 @@ export async function POST(req: NextRequest) {
     const raw = response.content[0].type === 'text' ? response.content[0].text : ''
     const text = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
     const plan = JSON.parse(text)
+    plan.github_repo = repo
 
     const db = getDB()
     if (task_id) {
@@ -98,11 +113,18 @@ export async function POST(req: NextRequest) {
     const complexityEmoji: Record<string, string> = { low: '🟢', medium: '🟡', high: '🔴' }
     const complexityLabel: Record<string, string> = { low: 'Низкая', medium: 'Средняя', high: 'Высокая' }
 
+    const allFiles = [
+      ...plan.structure.pages,
+      ...plan.structure.components,
+      ...plan.structure.api_routes,
+    ]
+
     const msg = [
       `📋 <b>Planning Agent — план готов</b>`,
       ``,
       `<b>${plan.project_name}</b>`,
       `🎯 ${plan.goal}`,
+      `📦 Репо: <code>${repo}</code>`,
       ``,
       `${complexityEmoji[plan.complexity] ?? '🟡'} Сложность: <b>${complexityLabel[plan.complexity] ?? plan.complexity}</b>`,
       `⏱ Оценка: <b>${plan.estimate_days} дней</b>`,
@@ -110,15 +132,11 @@ export async function POST(req: NextRequest) {
       `<b>Use Cases:</b>`,
       ...plan.use_cases.map((uc: string) => `• ${uc}`),
       ``,
-      `<b>Структура:</b>`,
-      `📄 Страниц: ${plan.structure.pages.length}`,
-      `🧩 Компонентов: ${plan.structure.components.length}`,
-      `🔌 API роутов: ${plan.structure.api_routes.length}`,
+      `<b>Файлы (${allFiles.length}):</b>`,
+      ...allFiles.map((f: string) => `• <code>${f}</code>`),
       ``,
       `<b>План разработки:</b>`,
       ...plan.build_plan.map((day: string) => `• ${day}`),
-      ``,
-      `🚀 Первый файл: <code>${plan.first_file}</code>`,
     ].join('\n')
 
     const keyboard = task_id ? {
