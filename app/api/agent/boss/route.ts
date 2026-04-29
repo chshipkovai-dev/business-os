@@ -79,6 +79,9 @@ export async function POST() {
       if (!decision) throw new Error('Boss: не удалось распарсить JSON от Claude')
 
       const agentEmoji: Record<string, string> = { builder: '⚙️', designer: '🎨', marketing: '📣' }
+      const agent = String(decision.agent ?? 'builder')
+      const estimate = String(decision.estimate ?? '?')
+      const reason = String(decision.reason ?? '')
 
       if (decision.complexity === 'complex') {
         await db.from('tasks').update({ agent_status: 'planning' }).eq('id', task.id)
@@ -98,10 +101,10 @@ export async function POST() {
           `🧠 <b>Boss Agent</b>`,
           ``,
           `📌 <b>${task.title}</b>`,
-          `${agentEmoji[decision.agent]} Сложная задача → Planning Agent`,
-          `⏱ ${decision.estimate}`,
+          `${agentEmoji[agent] ?? '⚙️'} Сложная задача → Planning Agent`,
+          `⏱ ${estimate}`,
           ``,
-          `${decision.reason}`,
+          `${reason}`,
         ].join('\n'))
 
         results.push({ task: task.title, complexity: 'complex', route: 'planning' })
@@ -130,9 +133,9 @@ export async function POST() {
           `🧠 <b>Boss Agent</b>`,
           ``,
           `📌 <b>${task.title}</b>`,
-          `${agentEmoji[decision.agent]} Простая задача → Builder`,
+          `${agentEmoji[agent] ?? '⚙️'} Простая задача → Builder`,
           `📦 Репо: <code>${githubRepo}</code>`,
-          `⏱ ${decision.estimate}`,
+          `⏱ ${estimate}`,
         ].join('\n'))
 
         await fetch(`${baseUrl}/api/agent/builder`, {
