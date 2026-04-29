@@ -72,15 +72,23 @@ ${filesContentStr}
 package.json:
 ${packageJson}
 
-Проверь следующее:
-1. Все import { X } from '@/components/Y' или '@/app/Y' — соответствующий файл Y должен существовать в списке файлов репо
-2. Все import from 'package-name' (не '@/' пути) — пакет должен быть в package.json dependencies или devDependencies
-3. Все export default function — синтаксис корректный, нет очевидных TypeScript ошибок
-4. Нет импортов из запрещённых пакетов: framer-motion, @radix-ui, shadcn, @hookform, zod
-5. В строковых литералах внутри одинарных кавычек нет необработанных апострофов (например title: 'You're' — ошибка, нужно title: "You're" или 'You\\'re')
-6. В JSX тексте нет необработанных апострофов — они должны быть заменены на &apos; (например: You're → You&apos;re)
-7. В JSX нет необработанных кавычек " внутри атрибутов — должны быть &quot; или {'"'}
-8. Нет конструкций вида export const metadata = { title: '...'s...' } где апостроф ломает строку
+Проверь следующее (каждый пункт — реальная причина падения TypeScript билда):
+
+[ИМПОРТЫ]
+1. Все import от '@/components/X' — файл X должен существовать в списке файлов репо
+2. Все import от npm пакетов — пакет должен быть в package.json dependencies
+3. Запрещённые пакеты: framer-motion, @radix-ui, shadcn/ui, @hookform, zod
+
+[СТРОКИ И JSX]
+4. Апостроф внутри одинарных кавычек: title: 'You're' — ОШИБКА (нужно "You're")
+5. Апостроф в JSX тексте без &apos;: <p>You're</p> — ОШИБКА (нужно You&apos;re)
+6. Кавычки в JSX тексте без экранирования — ОШИБКА
+
+[REACT 19 TYPESCRIPT]
+7. useRef<T>(null) — в props интерфейсе должно быть RefObject<T | null>, не RefObject<T>
+8. useState<string> передаётся в prop ожидающий union тип ('a'|'b'|'c') — ОШИБКА
+9. В style={} несуществующие CSS свойства: focusRingColor, ringColor, focusColor — ОШИБКА
+10. Тип unknown используется как индекс в Record<string,X>[value] без String() каста — ОШИБКА
 
 Разрешённые npm пакеты: next, react, react-dom, lucide-react, tailwindcss и их @types/*.
 

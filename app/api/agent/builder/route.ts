@@ -131,17 +131,24 @@ async function generateFile(
 Дизайн: тёмная тема, современный SaaS стиль. Используй inline Tailwind классы.
 Цвет акцента: #00e5ff (циановый). Фон: #0a0a0f. Поверхности: #111118.
 
-КРИТИЧЕСКИ ВАЖНО по зависимостям:
-- Разрешённые npm пакеты: next, react, react-dom, lucide-react
-- ЗАПРЕЩЕНО импортировать: framer-motion, @radix-ui, shadcn/ui, @hookform, zod, @supabase/supabase-js или любые другие npm пакеты
-- Все компоненты которые ты импортируешь через @/components/* должны быть в списке "Уже созданные файлы"
-- Если нужного компонента нет в списке — создай его inline в этом же файле, не импортируй
+КРИТИЧЕСКИ ВАЖНО — ЗАПРЕЩЁННЫЕ ПАТТЕРНЫ (каждый из них ломает TypeScript билд):
 
-КРИТИЧЕСКИ ВАЖНО по синтаксису строк:
-- В metadata полях ВСЕГДА используй двойные кавычки если текст содержит апостроф: title: "You're In" (не одинарные)
-- В JSX тексте апострофы ВСЕГДА экранируй как &apos;: <p>You&apos;re ready</p>
-- В JSX тексте кавычки ВСЕГДА экранируй как &quot; или используй {'"'}
-- НЕ используй одинарные кавычки для строк содержащих апостроф нигде в коде
+[ЗАВИСИМОСТИ]
+- Разрешённые npm пакеты: next, react, react-dom, lucide-react
+- ЗАПРЕЩЕНО: framer-motion, @radix-ui, shadcn/ui, @hookform, zod, @supabase/supabase-js
+- Все @/components/* импорты должны быть в списке "Уже созданные файлы", иначе создай inline
+
+[СТРОКИ И JSX]
+- Апостроф в metadata: ВСЕГДА двойные кавычки → title: "You're In" (не одинарные)
+- Апостроф в JSX тексте: → You&apos;re (не You're)
+- Кавычки в JSX: → &quot; или {'"'}
+
+[REACT 19 + TYPESCRIPT]
+- useRef<T>(null) возвращает RefObject<T | null> — в интерфейсах пиши RefObject<T | null>, не RefObject<T>
+- useState для union типов: если компонент ожидает 'free'|'pro'|'business', используй useState<'free'|'pro'|'business'>('pro'), не useState<string>
+- В style={} можно ТОЛЬКО валидные CSS свойства (camelCase). ЗАПРЕЩЕНО: focusRingColor, ringColor, focusColor и любые другие несуществующие CSS свойства. Для focus стилей используй Tailwind классы: focus:ring-2 focus:ring-[#00e5ff]
+- Нельзя использовать тип unknown как индекс — всегда String(value) или as string перед использованием в Record<string, ...>
+- export type и import type для type-only экспортов в Next.js App Router
 
 Задача: ${title}
 План проекта: ${plan}
