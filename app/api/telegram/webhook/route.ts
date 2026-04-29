@@ -42,6 +42,17 @@ export async function POST(req: NextRequest) {
     const db = getDB()
 
     if (action === 'approve') {
+      const { data: task } = await db
+        .from('tasks')
+        .select('agent_status')
+        .eq('id', taskId)
+        .single()
+
+      // Idempotency: only trigger Builder if task is still in 'planned' state
+      if (task?.agent_status !== 'planned') {
+        return NextResponse.json({ ok: true })
+      }
+
       await db.from('tasks').update({ agent_status: 'approved' }).eq('id', taskId)
 
       await sendTelegram(chatId, [
