@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     if (task_id) {
       await db.from('tasks').update({
         agent_status: 'planned',
-        notes: `[PLANNING AGENT]\n${JSON.stringify(plan, null, 2)}`,
+        notes: `GITHUB_REPO: ${repo}\n[PLANNING AGENT]\n${JSON.stringify(plan, null, 2)}`,
       }).eq('id', task_id)
     }
 

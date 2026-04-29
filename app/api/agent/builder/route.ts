@@ -62,7 +62,7 @@ async function pushToGitHub(filePath: string, content: string, commitMessage: st
 
 function extractFilesFromPlan(notes: string): { files: string[], plan: string, repo: string } {
   const repoMatch = notes.match(/GITHUB_REPO:\s*([^\n]+)/)
-  let repo = repoMatch ? repoMatch[1].trim() : (process.env.GITHUB_REPO || 'chshipkovai-dev/business-os')
+  let repo = repoMatch ? repoMatch[1].trim() : (process.env.GITHUB_REPO || 'chshipkovai-dev/new')
 
   const jsonStart = notes.indexOf('{')
   const jsonEnd = notes.lastIndexOf('}')
