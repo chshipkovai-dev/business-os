@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
         await sendTelegram(`✗ <code>${filePath}</code> — ошибка GitHub`)
       }
 
-      await new Promise(r => setTimeout(r, 5000))
+      await new Promise(r => setTimeout(r, 1000))
 
     } catch (err) {
       failedFiles.push(filePath)

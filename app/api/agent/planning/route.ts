@@ -36,6 +36,8 @@ const PLANNING_PROMPT = `Ты — Senior Planning Agent компании ailnex.
 - pages: только чистые пути, например "app/page.tsx", "app/layout.tsx" — БЕЗ описания через " —"
 - components: только чистые пути, например "components/ui/Button.tsx" — БЕЗ описания
 - api_routes: только чистые пути, например "app/api/register/route.ts" — БЕЗ описания
+- ЛИМИТ ФАЙЛОВ: максимум 8 файлов суммарно (pages + components + api_routes). Делай только самое необходимое. Большие компоненты можно объединить в один файл.
+- Запрещённые npm зависимости: framer-motion, @radix-ui, shadcn/ui, react-hook-form, zod, next-intl, @vercel/analytics. Используй только: next, react, react-dom, lucide-react, tailwindcss.
 
 Ответь ТОЛЬКО валидным JSON без markdown:
 {
