@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { safeParseJSON } from '../_utils'
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -74,8 +75,8 @@ export async function POST() {
       })
 
       const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-      const text = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
-      const decision = JSON.parse(text)
+      const decision = safeParseJSON(raw)
+      if (!decision) throw new Error('Boss: не удалось распарсить JSON от Claude')
 
       const agentEmoji: Record<string, string> = { builder: '⚙️', designer: '🎨', marketing: '📣' }
 

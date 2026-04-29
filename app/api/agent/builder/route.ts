@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { safeParseJSON } from '../_utils'
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -103,18 +104,44 @@ function extractFilesFromPlan(notes: string): { files: string[], plan: string, r
   }
 }
 
-async function generateFile(title: string, plan: string, filePath: string, createdFiles: string[]) {
+function getTesterIssues(notes: string): string {
+  const match = notes.match(/\[TESTER AGENT\]\nIssues:\n([\s\S]+?)(\[|$)/)
+  return match ? match[1].trim() : ''
+}
+
+function getTesterRetryCount(notes: string): number {
+  const match = notes.match(/\[TESTER RETRY: (\d+)\]/)
+  return match ? parseInt(match[1]) : 0
+}
+
+async function generateFile(
+  title: string,
+  plan: string,
+  filePath: string,
+  createdFiles: string[],
+  testerIssues: string
+) {
+  const issuesSection = testerIssues
+    ? `\nПроблемы которые нашёл Tester Agent (ОБЯЗАТЕЛЬНО исправь):\n${testerIssues}\n`
+    : ''
+
   const prompt = `Ты — Builder Agent компании ailnex. Генерируешь ГОТОВЫЙ production код.
 
 Стек: Next.js 15 App Router, TypeScript, Tailwind CSS.
 Дизайн: тёмная тема, современный SaaS стиль. Используй inline Tailwind классы.
 Цвет акцента: #00e5ff (циановый). Фон: #0a0a0f. Поверхности: #111118.
 
+КРИТИЧЕСКИ ВАЖНО по зависимостям:
+- Разрешённые npm пакеты: next, react, react-dom, lucide-react
+- ЗАПРЕЩЕНО импортировать: framer-motion, @radix-ui, shadcn/ui, @hookform, zod, @supabase/supabase-js или любые другие npm пакеты
+- Все компоненты которые ты импортируешь через @/components/* должны быть в списке "Уже созданные файлы"
+- Если нужного компонента нет в списке — создай его inline в этом же файле, не импортируй
+
 Задача: ${title}
 План проекта: ${plan}
 Уже созданные файлы: ${createdFiles.join(', ') || 'нет'}
 Сейчас генерируй: ${filePath}
-
+${issuesSection}
 Создай ПОЛНЫЙ рабочий код файла ${filePath}.
 - Без заглушек, без TODO, без placeholder текста
 - Реальный контент на английском языке
@@ -137,8 +164,9 @@ async function generateFile(title: string, plan: string, filePath: string, creat
   })
 
   const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-  const text = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
-  return JSON.parse(text)
+  const result = safeParseJSON(raw)
+  if (!result) throw new Error(`Builder: не удалось распарсить JSON для ${filePath}`)
+  return result
 }
 
 export async function POST(req: NextRequest) {
@@ -146,6 +174,7 @@ export async function POST(req: NextRequest) {
   if (!task_id) return NextResponse.json({ error: 'task_id required' }, { status: 400 })
 
   const db = getDB()
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://business-os-alpha-rust.vercel.app'
 
   const { data: task, error } = await db
     .from('tasks')
@@ -156,18 +185,21 @@ export async function POST(req: NextRequest) {
   if (error || !task) return NextResponse.json({ error: 'task not found' }, { status: 404 })
 
   const { files: allFiles, plan, repo } = extractFilesFromPlan(task.notes || '')
+  const testerIssues = getTesterIssues(task.notes || '')
+  const retryCount = getTesterRetryCount(task.notes || '')
 
   await db.from('tasks').update({ agent_status: 'building' }).eq('id', task_id)
 
   await sendTelegram([
-    `⚙️ <b>Builder Agent запущен</b>`,
+    `⚙️ <b>Builder Agent запущен</b>${retryCount > 0 ? ` (retry ${retryCount})` : ''}`,
     ``,
     `📌 <b>${task.title}</b>`,
     `📦 Репо: <code>${repo}</code>`,
     `📁 Создаю ${allFiles.length} файлов:`,
     ``,
     ...allFiles.map((f, i) => `${i + 1}. <code>${f}</code>`),
-  ].join('\n'))
+    testerIssues ? `\n⚠️ Исправляю ошибки от Tester` : '',
+  ].filter(Boolean).join('\n'))
 
   const createdFiles: string[] = []
   const failedFiles: string[] = []
@@ -176,8 +208,13 @@ export async function POST(req: NextRequest) {
     try {
       await sendTelegram(`🔨 Генерирую <code>${filePath}</code>...`)
 
-      const result = await generateFile(task.title, plan, filePath, createdFiles)
-      const pushResult = await pushToGitHub(result.file_path, result.content, result.commit_message, repo)
+      const result = await generateFile(task.title, plan, filePath, createdFiles, testerIssues)
+      const pushResult = await pushToGitHub(
+        result.file_path as string,
+        result.content as string,
+        result.commit_message as string,
+        repo
+      )
 
       if (pushResult.ok) {
         createdFiles.push(filePath)
@@ -195,13 +232,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const buildSuccess = failedFiles.length === 0
+
   await db.from('tasks').update({
-    agent_status: failedFiles.length === 0 ? 'done' : 'building',
+    agent_status: buildSuccess ? 'done' : 'building',
     notes: `${task.notes}\n\n[BUILDER AGENT]\nРепо: ${repo}\nСоздано: ${createdFiles.join(', ')}\nОшибки: ${failedFiles.join(', ') || 'нет'}`,
   }).eq('id', task_id)
 
   await sendTelegram([
-    `${failedFiles.length === 0 ? '✅' : '⚠️'} <b>Builder — ${failedFiles.length === 0 ? 'всё готово' : 'частично'}</b>`,
+    `${buildSuccess ? '✅' : '⚠️'} <b>Builder — ${buildSuccess ? 'всё готово' : 'частично'}</b>`,
     ``,
     `📌 <b>${task.title}</b>`,
     `📦 <code>${repo}</code>`,
@@ -211,6 +250,14 @@ export async function POST(req: NextRequest) {
     ``,
     `🔗 https://github.com/${repo}`,
   ].filter(Boolean).join('\n'))
+
+  if (buildSuccess) {
+    await fetch(`${baseUrl}/api/agent/tester`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id }),
+    }).catch(() => {})
+  }
 
   return NextResponse.json({ ok: true, created: createdFiles, failed: failedFiles, repo })
 }

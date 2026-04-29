@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { safeParseJSON } from '../_utils'
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -98,8 +99,8 @@ export async function POST(req: NextRequest) {
     })
 
     const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-    const text = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
-    const plan = JSON.parse(text)
+    const plan = safeParseJSON(raw)
+    if (!plan) throw new Error('Planning: не удалось распарсить JSON от Claude')
     plan.github_repo = repo
 
     const db = getDB()
@@ -150,6 +151,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, plan })
   } catch (err) {
+    if (task_id) {
+      const db = getDB()
+      await db.from('tasks').update({ agent_status: 'pending' }).eq('id', task_id)
+    }
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
