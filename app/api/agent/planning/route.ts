@@ -116,30 +116,37 @@ export async function POST(req: NextRequest) {
     const complexityEmoji: Record<string, string> = { low: '🟢', medium: '🟡', high: '🔴' }
     const complexityLabel: Record<string, string> = { low: 'Низкая', medium: 'Средняя', high: 'Высокая' }
 
+    const structure = plan.structure as { pages: string[], components: string[], api_routes: string[] } ?? {}
     const allFiles = [
-      ...plan.structure.pages,
-      ...plan.structure.components,
-      ...plan.structure.api_routes,
+      ...(structure.pages ?? []),
+      ...(structure.components ?? []),
+      ...(structure.api_routes ?? []),
     ]
+    const useCases = (plan.use_cases as string[]) ?? []
+    const buildPlan = (plan.build_plan as string[]) ?? []
+    const complexity = String(plan.complexity ?? 'medium')
+    const projectName = String(plan.project_name ?? '')
+    const goal = String(plan.goal ?? '')
+    const estimateDays = plan.estimate_days ?? '?'
 
     const msg = [
       `📋 <b>Planning Agent — план готов</b>`,
       ``,
-      `<b>${plan.project_name}</b>`,
-      `🎯 ${plan.goal}`,
+      `<b>${projectName}</b>`,
+      `🎯 ${goal}`,
       `📦 Репо: <code>${repo}</code>`,
       ``,
-      `${complexityEmoji[plan.complexity] ?? '🟡'} Сложность: <b>${complexityLabel[plan.complexity] ?? plan.complexity}</b>`,
-      `⏱ Оценка: <b>${plan.estimate_days} дней</b>`,
+      `${complexityEmoji[complexity] ?? '🟡'} Сложность: <b>${complexityLabel[complexity] ?? complexity}</b>`,
+      `⏱ Оценка: <b>${estimateDays} дней</b>`,
       ``,
       `<b>Use Cases:</b>`,
-      ...plan.use_cases.map((uc: string) => `• ${uc}`),
+      ...useCases.map((uc: string) => `• ${uc}`),
       ``,
       `<b>Файлы (${allFiles.length}):</b>`,
       ...allFiles.map((f: string) => `• <code>${f}</code>`),
       ``,
       `<b>План разработки:</b>`,
-      ...plan.build_plan.map((day: string) => `• ${day}`),
+      ...buildPlan.map((day: string) => `• ${day}`),
     ].join('\n')
 
     const keyboard = task_id ? {
