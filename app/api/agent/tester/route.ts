@@ -77,6 +77,10 @@ ${packageJson}
 2. Все import from 'package-name' (не '@/' пути) — пакет должен быть в package.json dependencies или devDependencies
 3. Все export default function — синтаксис корректный, нет очевидных TypeScript ошибок
 4. Нет импортов из запрещённых пакетов: framer-motion, @radix-ui, shadcn, @hookform, zod
+5. В строковых литералах внутри одинарных кавычек нет необработанных апострофов (например title: 'You're' — ошибка, нужно title: "You're" или 'You\\'re')
+6. В JSX тексте нет необработанных апострофов — они должны быть заменены на &apos; (например: You're → You&apos;re)
+7. В JSX нет необработанных кавычек " внутри атрибутов — должны быть &quot; или {'"'}
+8. Нет конструкций вида export const metadata = { title: '...'s...' } где апостроф ломает строку
 
 Разрешённые npm пакеты: next, react, react-dom, lucide-react, tailwindcss и их @types/*.
 
