@@ -341,7 +341,10 @@ export async function POST(req: NextRequest) {
   ].filter(Boolean).join('\n'))
 
   if (buildSuccess) {
-    await fetch(`${baseUrl}/api/agent/tester`, {
+    // Reviewer Agent если нет активного Tester retry (Tester сам вызывает Builder при ошибках)
+    const isFromTesterRetry = getTesterRetryCount(task.notes || '') > 0
+    const nextAgent = isFromTesterRetry ? 'tester' : 'reviewer'
+    await fetch(`${baseUrl}/api/agent/${nextAgent}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task_id }),
