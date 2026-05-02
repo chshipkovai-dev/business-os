@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { safeParseJSON } from '../_utils'
+import { AILNEX_KNOWLEDGE } from '../_knowledge/ailnex'
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -23,7 +24,11 @@ async function sendTelegram(msg: string) {
   }).catch(() => {})
 }
 
-const BOSS_PROMPT = `Ты — Boss Agent компании ailnex. Получаешь задачу и быстро определяешь тип и сложность.
+const BOSS_PROMPT = `${AILNEX_KNOWLEDGE}
+
+---
+
+Ты — Boss Agent компании Ailnex. Получаешь задачу и быстро определяешь тип, сложность и требования.
 
 Задача: {TITLE}
 Заметки: {NOTES}
@@ -31,13 +36,29 @@ const BOSS_PROMPT = `Ты — Boss Agent компании ailnex. Получае
 Ответь ТОЛЬКО валидным JSON без markdown:
 {
   "agent": "builder" | "designer" | "marketing",
+  "project_type": "web" | "automation" | "n8n" | "agent" | "api",
   "complexity": "simple" | "complex",
+  "requirements": {
+    "accessibility": true,
+    "mobile": true,
+    "seo": false,
+    "testing": false,
+    "error_handling": true
+  },
   "reason": "одно предложение почему",
   "estimate": "например: 1 час или 3 дня"
 }
 
-simple = мелкий фикс, простая страница, небольшое изменение
-complex = новый продукт, сложная интеграция, много файлов`
+project_type:
+- "web" → лендинг, SaaS интерфейс, e-commerce (Next.js + Tailwind)
+- "automation" → скрипты, Make/n8n сценарии, API интеграции
+- "n8n" → JSON workflow для n8n
+- "agent" → Claude API агент (Anthropic SDK)
+- "api" → REST endpoint, backend logic
+
+complexity:
+- simple = мелкий фикс, простая страница, небольшое изменение
+- complex = новый продукт, сложная интеграция, много файлов`
 
 export async function POST() {
   const db = getDB()
@@ -82,9 +103,20 @@ export async function POST() {
       const agent = String(decision.agent ?? 'builder')
       const estimate = String(decision.estimate ?? '?')
       const reason = String(decision.reason ?? '')
+      const projectType = String(decision.project_type ?? 'web')
+      const requirements = decision.requirements ?? {}
+
+      const bossMetadata = `PROJECT_TYPE: ${projectType}\nREQUIREMENTS: ${JSON.stringify(requirements)}`
+      const existingNotes = task.notes || ''
+      const notesWithMeta = existingNotes.includes('PROJECT_TYPE:')
+        ? existingNotes
+        : `${existingNotes}\n${bossMetadata}`.trim()
 
       if (decision.complexity === 'complex') {
-        await db.from('tasks').update({ agent_status: 'planning' }).eq('id', task.id)
+        await db.from('tasks').update({
+          agent_status: 'planning',
+          notes: notesWithMeta,
+        }).eq('id', task.id)
 
         await fetch(`${baseUrl}/api/agent/planning`, {
           method: 'POST',
@@ -92,7 +124,7 @@ export async function POST() {
           body: JSON.stringify({
             task_id: task.id,
             title: task.title,
-            notes: task.notes,
+            notes: notesWithMeta,
             category: task.category,
           }),
         }).catch(() => {})
@@ -102,19 +134,20 @@ export async function POST() {
           ``,
           `📌 <b>${task.title}</b>`,
           `${agentEmoji[agent] ?? '⚙️'} Сложная задача → Planning Agent`,
+          `🔧 Тип: <code>${projectType}</code>`,
           `⏱ ${estimate}`,
           ``,
           `${reason}`,
         ].join('\n'))
 
-        results.push({ task: task.title, complexity: 'complex', route: 'planning' })
+        results.push({ task: task.title, complexity: 'complex', project_type: projectType, route: 'planning' })
 
       } else {
-        // Простая → создаём минимальный план и вызываем Builder напрямую
         const minimalPlan = {
           project_name: task.title,
           github_repo: githubRepo,
           goal: task.title,
+          project_type: projectType,
           structure: {
             pages: ['app/page.tsx'],
             components: [],
@@ -126,7 +159,7 @@ export async function POST() {
 
         await db.from('tasks').update({
           agent_status: 'approved',
-          notes: `GITHUB_REPO: ${githubRepo}\n[PLANNING AGENT]\n${JSON.stringify(minimalPlan, null, 2)}`,
+          notes: `GITHUB_REPO: ${githubRepo}\n${bossMetadata}\n[PLANNING AGENT]\n${JSON.stringify(minimalPlan, null, 2)}`,
         }).eq('id', task.id)
 
         await sendTelegram([
@@ -135,6 +168,7 @@ export async function POST() {
           `📌 <b>${task.title}</b>`,
           `${agentEmoji[agent] ?? '⚙️'} Простая задача → Builder`,
           `📦 Репо: <code>${githubRepo}</code>`,
+          `🔧 Тип: <code>${projectType}</code>`,
           `⏱ ${estimate}`,
         ].join('\n'))
 
@@ -144,7 +178,7 @@ export async function POST() {
           body: JSON.stringify({ task_id: task.id }),
         }).catch(() => {})
 
-        results.push({ task: task.title, complexity: 'simple', route: 'builder' })
+        results.push({ task: task.title, complexity: 'simple', project_type: projectType, route: 'builder' })
       }
 
     } catch (err) {

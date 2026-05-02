@@ -70,27 +70,69 @@ async function getAllRepoTsFiles(repo: string): Promise<string[]> {
     .map(f => f.path)
 }
 
-async function analyzeCode(
-  filesList: string[],
-  filesContent: Record<string, string>,
-  packageJson: string
-): Promise<{ pass: boolean, issues: Array<{ file: string, problem: string, fix: string }> }> {
-  const filesContentStr = Object.entries(filesContent)
-    .map(([path, content]) => `=== ${path} ===\n${content}`)
-    .join('\n\n')
+function getChecklistForType(projectType: string): string {
+  switch (projectType) {
+    case 'n8n':
+      return `
+Проверь следующее для n8n workflow JSON:
 
-  const prompt = `Ты — Tester Agent. Делаешь статический анализ кода Next.js проекта.
+[СТРУКТУРА]
+1. Все referenced node names в connections реально существуют в nodes[]
+2. Нет dead ends — каждая нода (кроме финальных) имеет connections
+3. Условия IF имеют оба branch (true + false)
+4. Циклы имеют условие выхода
 
-Список файлов в репо:
-${filesList.join('\n')}
+[DATA FLOW]
+5. Нет hardcoded credentials (должен быть {{ $credentials.X }} паттерн)
+6. HTTP Request ноды имеют заполненный url
+7. Нет потери данных — output одной ноды используется в следующей
 
-Содержимое файлов:
-${filesContentStr}
+[RELIABILITY]
+8. Есть Error Trigger нода или IF проверка на ошибку
+9. Есть Telegram/Email нода для уведомления об ошибке`
 
-package.json:
-${packageJson}
+    case 'automation':
+      return `
+Проверь следующее для automation скрипта:
 
-Проверь следующее (каждый пункт — реальная причина падения TypeScript билда):
+[БЕЗОПАСНОСТЬ]
+1. Нет hardcoded API keys, паролей, токенов — только process.env
+2. Нет sensitive data в console.log
+
+[ОБРАБОТКА ОШИБОК]
+3. Каждая async функция обёрнута в try/catch
+4. HTTP ошибки проверяются: if (!res.ok) throw...
+5. Нет silent failures (.catch(() => {}))`
+
+    case 'agent':
+      return `
+Проверь следующее для Claude API агента:
+
+[ANTHROPIC SDK]
+1. Используется актуальный model ID: claude-sonnet-4-6, claude-haiku-4-5, или claude-opus-4-7
+2. max_tokens всегда задан
+3. Нет API key в коде — только process.env.ANTHROPIC_API_KEY
+
+[КАЧЕСТВО]
+4. Нет as any / as unknown
+5. Все функции имеют return type`
+
+    case 'api':
+      return `
+Проверь следующее для API endpoint:
+
+[БЕЗОПАСНОСТЬ]
+1. Input validation в начале функции
+2. Нет SQL injection рисков
+3. Нет sensitive data в response body при ошибке
+
+[HTTP КОНВЕНЦИИ]
+4. Правильные статус коды (400 для validation, 404 для not found, 500 для server error)
+5. Нет hardcoded secrets`
+
+    default: // 'web'
+      return `
+Проверь следующее (каждый пункт — реальная причина падения TypeScript билда или UX проблема):
 
 [ИМПОРТЫ]
 1. Все import от '@/components/X' — файл X должен существовать в списке файлов репо
@@ -108,7 +150,41 @@ ${packageJson}
 9. В style={} несуществующие CSS свойства: focusRingColor, ringColor, focusColor — ОШИБКА
 10. Тип unknown используется как индекс в Record<string,X>[value] без String() каста — ОШИБКА
 
-Разрешённые npm пакеты: next, react, react-dom, lucide-react, tailwindcss и их @types/*.
+[ACCESSIBILITY]
+11. Кнопки без aria-label и без видимого текста — ОШИБКА
+12. Input без связанного <label htmlFor="..."> — ОШИБКА
+
+[MOBILE]
+13. Заголовки text-4xl и больше без sm:/lg: breakpoint — ОШИБКА
+
+Разрешённые npm пакеты: next, react, react-dom, lucide-react, tailwindcss и их @types/*.`
+  }
+}
+
+async function analyzeCode(
+  filesList: string[],
+  filesContent: Record<string, string>,
+  packageJson: string,
+  projectType: string
+): Promise<{ pass: boolean, issues: Array<{ file: string, problem: string, fix: string }> }> {
+  const filesContentStr = Object.entries(filesContent)
+    .map(([path, content]) => `=== ${path} ===\n${content}`)
+    .join('\n\n')
+
+  const checklist = getChecklistForType(projectType)
+
+  const prompt = `Ты — Tester Agent компании Ailnex. Делаешь статический анализ кода проекта.
+Тип проекта: ${projectType}
+
+Список файлов в репо:
+${filesList.join('\n')}
+
+Содержимое файлов:
+${filesContentStr}
+
+package.json:
+${packageJson}
+${checklist}
 
 Ответь ТОЛЬКО валидным JSON без markdown:
 {
@@ -156,6 +232,8 @@ export async function POST(req: NextRequest) {
 
   const { repo, files: createdFiles } = extractRepoAndFiles(task.notes || '')
   const retryCount = getTesterRetryCount(task.notes || '')
+  const projectTypeMatch = (task.notes || '').match(/PROJECT_TYPE:\s*([^\n]+)/)
+  const projectType = projectTypeMatch ? projectTypeMatch[1].trim() : 'web'
 
   if (!repo) {
     return NextResponse.json({ error: 'no repo found in notes' }, { status: 400 })
@@ -184,7 +262,7 @@ export async function POST(req: NextRequest) {
 
   const packageJson = await fetchFileFromGitHub(repo, 'package.json') || '{}'
 
-  const analysis = await analyzeCode([...filesToCheck, 'package.json'], filesContent, packageJson)
+  const analysis = await analyzeCode([...filesToCheck, 'package.json'], filesContent, packageJson, projectType)
 
   if (analysis.pass) {
     await db.from('tasks').update({

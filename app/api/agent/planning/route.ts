@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { safeParseJSON } from '../_utils'
+import { AILNEX_KNOWLEDGE } from '../_knowledge/ailnex'
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -23,14 +24,17 @@ async function sendTelegramWithButtons(msg: string, reply_markup?: object) {
   }).catch(() => {})
 }
 
-const PLANNING_PROMPT = `Ты — Senior Planning Agent компании ailnex. Получаешь задачу на разработку и делаешь ГЛУБОКИЙ анализ перед тем как передать разработчику.
+const PLANNING_PROMPT = `${AILNEX_KNOWLEDGE}
+
+---
+
+Ты — Senior Planning Agent компании Ailnex. Получаешь задачу на разработку и делаешь ГЛУБОКИЙ анализ перед тем как передать разработчику.
 
 Задача: {TITLE}
 Детали: {NOTES}
-Тип: {CATEGORY}
+Тип проекта: {PROJECT_TYPE}
+Категория: {CATEGORY}
 Репозиторий: {REPO}
-
-Стек ailnex: Next.js 15 App Router, TypeScript, Tailwind CSS, Supabase, Claude API, Vercel.
 
 ВАЖНО по структуре файлов:
 - pages: только чистые пути, например "app/page.tsx", "app/layout.tsx" — БЕЗ описания через " —"
@@ -43,6 +47,7 @@ const PLANNING_PROMPT = `Ты — Senior Planning Agent компании ailnex.
 {
   "project_name": "короткое название проекта",
   "github_repo": "{REPO}",
+  "project_type": "{PROJECT_TYPE}",
   "goal": "одно предложение — что именно строим и какую проблему решаем",
   "use_cases": [
     "Use case 1: кто + что делает + зачем",
@@ -86,9 +91,14 @@ export async function POST(req: NextRequest) {
   const repoMatch = notes?.match(/GITHUB_REPO:\s*([^\n]+)/)
   const repo = repoMatch ? repoMatch[1].trim() : 'chshipkovai-dev/business-os'
 
+  const projectTypeMatch = notes?.match(/PROJECT_TYPE:\s*([^\n]+)/)
+  const projectType = projectTypeMatch ? projectTypeMatch[1].trim() : 'web'
+
   const prompt = PLANNING_PROMPT
     .replace('{TITLE}', title)
     .replace('{NOTES}', notes || 'нет')
+    .replace('{PROJECT_TYPE}', projectType)
+    .replace('{PROJECT_TYPE}', projectType)
     .replace('{CATEGORY}', category || 'work')
     .replace('{REPO}', repo)
     .replace('{REPO}', repo)

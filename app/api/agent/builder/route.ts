@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { safeParseJSON } from '../_utils'
+import { AILNEX_KNOWLEDGE } from '../_knowledge/ailnex'
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -114,23 +115,94 @@ function getTesterRetryCount(notes: string): number {
   return match ? parseInt(match[1]) : 0
 }
 
+function getProjectType(notes: string): string {
+  const match = notes.match(/PROJECT_TYPE:\s*([^\n]+)/)
+  return match ? match[1].trim() : 'web'
+}
+
+function getTypeSpecificInstructions(projectType: string): string {
+  switch (projectType) {
+    case 'n8n':
+      return `
+Ты генерируешь ВАЛИДНЫЙ JSON workflow для n8n.
+- Используй только реальные n8n node types: HTTP Request, Set, If, Code, Telegram, Supabase, Wait, Schedule Trigger, Webhook, Merge, Loop Over Items, AI Agent
+- Каждая нода имеет: id (уникальный), name, type, typeVersion, position [x,y], parameters
+- connections объект: { "NodeName": { "main": [[{ "node": "NextNode", "type": "main", "index": 0 }]] } }
+- Включи error handling (Error Trigger нода или IF проверка на ошибку)
+- Нет hardcoded credentials — используй только {{ $credentials.X }} паттерн
+- Включи Telegram нотификацию об ошибке
+- Ответь JSON с полем "content" содержащим валидный n8n workflow JSON`
+
+    case 'automation':
+      return `
+Ты генерируешь TypeScript/Node.js скрипт автоматизации.
+- Каждая async функция обёрнута в try/catch с конкретной обработкой ошибки
+- Credentials только через process.env, НИКОГДА hardcode
+- Структурированный logging: console.log(JSON.stringify({ event, data, timestamp }))
+- HTTP ошибки проверяются: if (!res.ok) throw new Error(\`HTTP \${res.status}: \${await res.text()}\`)
+- Нет silent failures в .catch
+- Функции ≤ 50 строк, разбивай на мелкие`
+
+    case 'agent':
+      return `
+Ты генерируешь Claude API агента с Anthropic SDK.
+- Используй актуальные модели: claude-sonnet-4-6 или claude-haiku-4-5
+- Всегда задавай max_tokens
+- Tool use паттерн через tools[] если нужен
+- Prompt caching через cache_control: { type: "ephemeral" } для длинных системных промптов
+- Streaming через stream: true если нужен real-time output
+- Нет API key в коде — только process.env.ANTHROPIC_API_KEY`
+
+    case 'api':
+      return `
+Ты генерируешь REST API endpoint (Next.js route.ts).
+- Валидация входных данных в начале функции
+- Правильные HTTP статус коды: 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 404 Not Found, 500 Internal Server Error
+- CORS headers если публичный endpoint
+- Нет SQL injection — используй параметризованные запросы через Supabase client
+- Rate limiting через заголовки или простой in-memory check`
+
+    default: // 'web'
+      return `
+Дизайн: тёмная тема, современный SaaS стиль. Используй inline Tailwind классы.
+Цвет акцента: #00e5ff (циановый). Фон: #0a0a0f. Поверхности: #111118.
+
+[ACCESSIBILITY]
+- Все кнопки: aria-label если нет видимого текста
+- Все input: связаны с <label htmlFor="...">
+- Heading hierarchy: один h1 на страницу, h2→h3 строго
+- Nav обёрнут в <nav> тег
+
+[MOBILE]
+- Заголовки: text-2xl sm:text-4xl lg:text-6xl (три breakpoint)
+- Grid: grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 (без прыжков)
+- Кнопки: min-h-[44px] (Apple HIG tap target)
+- Padding: px-4 sm:px-6 lg:px-8 минимум`
+  }
+}
+
 async function generateFile(
   title: string,
   plan: string,
   filePath: string,
   allPlannedFiles: string[],
   createdFiles: string[],
-  testerIssues: string
+  testerIssues: string,
+  projectType: string
 ) {
   const issuesSection = testerIssues
     ? `\nПроблемы которые нашёл Tester Agent (ОБЯЗАТЕЛЬНО исправь):\n${testerIssues}\n`
     : ''
 
-  const prompt = `Ты — Builder Agent компании ailnex. Генерируешь ГОТОВЫЙ production код.
+  const typeInstructions = getTypeSpecificInstructions(projectType)
 
-Стек: Next.js 15 App Router, TypeScript, Tailwind CSS.
-Дизайн: тёмная тема, современный SaaS стиль. Используй inline Tailwind классы.
-Цвет акцента: #00e5ff (циановый). Фон: #0a0a0f. Поверхности: #111118.
+  const prompt = `${AILNEX_KNOWLEDGE}
+
+---
+
+Ты — Builder Agent компании Ailnex. Генерируешь ГОТОВЫЙ production код.
+Тип проекта: ${projectType}
+${typeInstructions}
 
 КРИТИЧЕСКИ ВАЖНО — ЗАПРЕЩЁННЫЕ ПАТТЕРНЫ (каждый из них ломает TypeScript билд):
 
@@ -203,6 +275,7 @@ export async function POST(req: NextRequest) {
   const { files: allFiles, plan, repo } = extractFilesFromPlan(task.notes || '')
   const testerIssues = getTesterIssues(task.notes || '')
   const retryCount = getTesterRetryCount(task.notes || '')
+  const projectType = getProjectType(task.notes || '')
 
   await db.from('tasks').update({ agent_status: 'building' }).eq('id', task_id)
 
@@ -224,7 +297,7 @@ export async function POST(req: NextRequest) {
     try {
       await sendTelegram(`🔨 Генерирую <code>${filePath}</code>...`)
 
-      const result = await generateFile(task.title, plan, filePath, allFiles, createdFiles, testerIssues)
+      const result = await generateFile(task.title, plan, filePath, allFiles, createdFiles, testerIssues, projectType)
       const pushResult = await pushToGitHub(
         result.file_path as string,
         result.content as string,
