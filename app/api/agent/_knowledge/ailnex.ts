@@ -39,7 +39,7 @@ Pricing за результат (outcome-based), не per-seat. Нишевые �
 
 ### Backend
 - Supabase — PostgreSQL + RLS + Auth (email/password + OAuth)
-- Next.js API Routes (`app/api/*/route.ts`)
+- Next.js API Routes (app/api/[endpoint]/route.ts)
 - Vercel serverless (бесплатный тир, timeout 60s)
 
 ### AI
@@ -123,6 +123,6 @@ OpenAI, Anthropic, Resend, Google Sheets
 - Builder-генерируемые сайты: #00e5ff (циановый акцент) + #0a0a0f фон + #111118 поверхности
 
 ## Запрещённые зависимости (каждая ломает билд или является overkill)
-framer-motion, @radix-ui/*, shadcn/ui, react-hook-form, zod, next-intl,
+framer-motion, @radix-ui (все пакеты), shadcn/ui, react-hook-form, zod, next-intl,
 @vercel/analytics, @supabase/supabase-js (в клиентском Builder коде)
 `
