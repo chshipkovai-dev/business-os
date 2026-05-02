@@ -118,6 +118,7 @@ async function generateFile(
   title: string,
   plan: string,
   filePath: string,
+  allPlannedFiles: string[],
   createdFiles: string[],
   testerIssues: string
 ) {
@@ -133,10 +134,13 @@ async function generateFile(
 
 КРИТИЧЕСКИ ВАЖНО — ЗАПРЕЩЁННЫЕ ПАТТЕРНЫ (каждый из них ломает TypeScript билд):
 
-[ЗАВИСИМОСТИ]
+[ИМПОРТЫ — САМОЕ ВАЖНОЕ]
+- Все файлы которые будут созданы в проекте: ${allPlannedFiles.join(', ')}
+- Уже созданы и доступны для импорта прямо сейчас: ${createdFiles.join(', ') || 'нет'}
+- ЗАПРЕЩЕНО импортировать @/components/* файлы которых НЕТ в списке "Уже созданы"
+- Если нужен компонент которого нет в "Уже созданы" — создай его INLINE прямо в этом файле
 - Разрешённые npm пакеты: next, react, react-dom, lucide-react
 - ЗАПРЕЩЕНО: framer-motion, @radix-ui, shadcn/ui, @hookform, zod, @supabase/supabase-js
-- Все @/components/* импорты должны быть в списке "Уже созданные файлы", иначе создай inline
 
 [СТРОКИ И JSX]
 - Апостроф в metadata: ВСЕГДА двойные кавычки → title: "You're In" (не одинарные)
@@ -152,7 +156,6 @@ async function generateFile(
 
 Задача: ${title}
 План проекта: ${plan}
-Уже созданные файлы: ${createdFiles.join(', ') || 'нет'}
 Сейчас генерируй: ${filePath}
 ${issuesSection}
 Создай ПОЛНЫЙ рабочий код файла ${filePath}.
@@ -221,7 +224,7 @@ export async function POST(req: NextRequest) {
     try {
       await sendTelegram(`🔨 Генерирую <code>${filePath}</code>...`)
 
-      const result = await generateFile(task.title, plan, filePath, createdFiles, testerIssues)
+      const result = await generateFile(task.title, plan, filePath, allFiles, createdFiles, testerIssues)
       const pushResult = await pushToGitHub(
         result.file_path as string,
         result.content as string,

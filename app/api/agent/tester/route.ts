@@ -52,6 +52,24 @@ async function fetchFileFromGitHub(repo: string, path: string): Promise<string |
   return null
 }
 
+async function getAllRepoTsFiles(repo: string): Promise<string[]> {
+  const token = process.env.GITHUB_TOKEN
+  const res = await fetch(`https://api.github.com/repos/${repo}/git/trees/HEAD?recursive=1`, {
+    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
+  })
+  if (!res.ok) return []
+  const data = await res.json()
+  return (data.tree as Array<{ path: string; type: string }>)
+    .filter(f =>
+      f.type === 'blob' &&
+      (f.path.endsWith('.tsx') || f.path.endsWith('.ts')) &&
+      !f.path.includes('node_modules') &&
+      !f.path.includes('.d.ts') &&
+      f.path !== 'next.config.ts'
+    )
+    .map(f => f.path)
+}
+
 async function analyzeCode(
   filesList: string[],
   filesContent: Record<string, string>,
@@ -150,22 +168,23 @@ export async function POST(req: NextRequest) {
     ``,
     `📌 <b>${task.title}</b>`,
     `📦 <code>${repo}</code>`,
-    `📁 Проверяю ${createdFiles.length} файлов...`,
+    `📁 Проверяю ${createdFiles.length} созданных + весь репо...`,
   ].join('\n'))
+
+  // Получаем ВСЕ .ts/.tsx файлы из репо (включая zombie-файлы от старых ранов)
+  const allRepoFiles = await getAllRepoTsFiles(repo)
+  const filesToCheck = allRepoFiles.length > 0 ? allRepoFiles : createdFiles
 
   // Читаем все файлы из GitHub
   const filesContent: Record<string, string> = {}
-  for (const filePath of createdFiles) {
+  for (const filePath of filesToCheck) {
     const content = await fetchFileFromGitHub(repo, filePath)
     if (content) filesContent[filePath] = content
   }
 
   const packageJson = await fetchFileFromGitHub(repo, 'package.json') || '{}'
 
-  // Полный список файлов в репо (для проверки импортов)
-  const allRepoFiles = [...createdFiles, 'package.json']
-
-  const analysis = await analyzeCode(allRepoFiles, filesContent, packageJson)
+  const analysis = await analyzeCode([...filesToCheck, 'package.json'], filesContent, packageJson)
 
   if (analysis.pass) {
     await db.from('tasks').update({
