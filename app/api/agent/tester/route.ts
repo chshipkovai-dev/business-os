@@ -270,6 +270,8 @@ export async function POST(req: NextRequest) {
       notes: `${task.notes}\n\n[TESTER AGENT]\nPass: все проверки пройдены`,
     }).eq('id', task_id)
 
+    const nextAgent = projectType === 'web' ? 'seo' : 'deployment-monitor'
+
     await sendTelegram([
       `✅ <b>Tester — всё чисто!</b>`,
       ``,
@@ -282,10 +284,10 @@ export async function POST(req: NextRequest) {
       ``,
       `🔗 https://github.com/${repo}`,
       ``,
-      `🚀 Жду деплоя...`,
+      projectType === 'web' ? `🔎 Передаю SEO Agent...` : `🚀 Жду деплоя...`,
     ].join('\n'))
 
-    await fetch(`${baseUrl}/api/agent/deployment-monitor`, {
+    await fetch(`${baseUrl}/api/agent/${nextAgent}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task_id }),
