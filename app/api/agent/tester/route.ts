@@ -266,7 +266,7 @@ export async function POST(req: NextRequest) {
 
   if (analysis.pass) {
     await db.from('tasks').update({
-      agent_status: 'done',
+      agent_status: 'tested',
       notes: `${task.notes}\n\n[TESTER AGENT]\nPass: все проверки пройдены`,
     }).eq('id', task_id)
 
@@ -276,12 +276,20 @@ export async function POST(req: NextRequest) {
       `📌 <b>${task.title}</b>`,
       `📦 <code>${repo}</code>`,
       ``,
-      `✓ Проверено файлов: <b>${createdFiles.length}</b>`,
+      `✓ Проверено файлов: <b>${filesToCheck.length}</b>`,
       `✓ Импорты: OK`,
       `✓ Зависимости: OK`,
       ``,
       `🔗 https://github.com/${repo}`,
+      ``,
+      `🚀 Жду деплоя...`,
     ].join('\n'))
+
+    await fetch(`${baseUrl}/api/agent/deployment-monitor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id }),
+    }).catch(() => {})
 
     return NextResponse.json({ ok: true, pass: true, repo })
   }
